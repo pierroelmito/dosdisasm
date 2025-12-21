@@ -292,11 +292,9 @@ struct AnalyzeLabels : Cb {
 struct Dumper : Cb {
 	const std::set<ZyanU64>& existingLabels;
 	const std::set<ZyanU64>& jumpLabels;
-	FILE* const outFile {};
-	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, FILE* o)
+	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl)
 		: existingLabels(el)
 		, jumpLabels(jl)
-		, outFile(o)
 	{
 	}
 	virtual void dumpStr(const Ctx& ctx, bool skip, ZyanUSize sz, const char* label, const char* const str) const = 0;
@@ -312,8 +310,8 @@ struct Dumper : Cb {
 		if (size > 4) {
 			auto* b = ctx.data;
 			auto* e = ctx.data + size;
-			auto itf = std::find_if(b, e, [&] (auto c) {
-					return c != *b;
+			auto itf = std::find_if(b, e, [&](auto c) {
+				return c != *b;
 			});
 			if (itf == e) {
 				char label[64];
@@ -403,7 +401,12 @@ struct Dumper : Cb {
 };
 
 struct GenerateAsmColor : Dumper {
-	using Dumper::Dumper;
+	FILE* const outFile {};
+	GenerateAsmColor(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, FILE* o)
+		: Dumper(el, jl)
+		, outFile(o)
+	{
+	}
 	virtual void finish() const override
 	{
 		ru::resetColor();
@@ -431,7 +434,12 @@ struct GenerateAsmColor : Dumper {
 };
 
 struct GenerateAsmNoColor : Dumper {
-	using Dumper::Dumper;
+	FILE* const outFile {};
+	GenerateAsmNoColor(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, FILE* o)
+		: Dumper(el, jl)
+		, outFile(o)
+	{
+	}
 	virtual void dumpStr(const Ctx& ctx, bool, ZyanUSize sz, const char* label, const char* const str) const override
 	{
 		if (label != nullptr)
@@ -451,6 +459,102 @@ struct GenerateAsmNoColor : Dumper {
 	}
 };
 
+struct Item {
+	ZyanU64 ra;
+	ZyanUSize sz;
+	std::string label;
+	std::string asmc;
+	bool skip;
+};
+
+using Listing = std::vector<Item>;
+
+struct TuiCtx {
+	const std::vector<ZyanU8>& content;
+	Listing l;
+	size_t s {};
+};
+
+struct LoadCode : Dumper {
+	Listing& listing;
+	LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Listing& l)
+		: Dumper(el, jl)
+		, listing(l)
+	{
+	}
+	virtual void dumpStr(const Ctx& ctx, bool skip, ZyanUSize sz, const char* label, const char* const str) const override
+	{
+		listing.push_back({ ctx.runtime_address, sz, label ? label : "", str, skip });
+	}
+};
+
+void tui_main(TuiCtx& ctx)
+{
+	std::string spaces;
+	auto draw = [&](ru::Vec d) {
+		using V = ru::Vec;
+		using A = std::pair<ru::Color, ru::Color>;
+		if (spaces.size() != d.x)
+			spaces = std::string(d.x, ' ');
+		ru::cls();
+		ru::tprint(V { 1, 1 }, A{ ru::Color::WHITE, ru::Color::BLUE }, "%s", spaces.c_str());
+		ru::tprint(V { 1, d.y }, A{ ru::Color::WHITE, ru::Color::BLUE }, "%s", spaces.c_str());
+		ru::tprint(V { 1, 1 }, ru::Color::WHITE, "%d %d", d.x, d.y);
+		ru::resetColor();
+		for (int i = 0u; i < d.y - 4; ++i) {
+			if (i < ctx.l.size()) {
+				const bool selected = i == ctx.s;
+				auto col = selected ? A { ru::Color::WHITE, ru::Color::RED } : A { ru::Color::BROWN, ru::Color::NONE };
+				ru::tprint(col);
+				const auto& o = ctx.l[i];
+				ru::tprint(V { 1, i + 2 });
+				ru::tprint(o.skip ? ru::Color::BLUE : ru::Color::WHITE);
+				int lsz = ru::tprint("%3d ", i);
+				if (o.label.empty())
+					lsz += ru::tprint(ru::Color::BROWN, "%04X ", o.ra);
+				else
+					lsz += ru::tprint(ru::Color::GREEN, "%s: ", o.label.c_str());
+				lsz += ru::tprint(ru::Color::WHITE, "%s", o.asmc.c_str());
+				ru::tprint("%s", spaces.data() + lsz);
+				if (selected)
+					ru::resetColor();
+			}
+		}
+		fflush(stdout);
+	};
+
+	auto cd = ru::dim();
+	draw(cd);
+	for (;;) {
+		if (ru::kbhit()) {
+			char k = ru::getkey();
+			if (k == 'q' || k == ru::KeyCode::KEY_ESCAPE) {
+				break;
+			} else if (k == 'e') {
+			} else if (k == ru::KeyCode::KEY_UP) {
+				if (ctx.s > 0)
+					ctx.s--;
+			} else if (k == ru::KeyCode::KEY_DOWN) {
+				if (ctx.s < ctx.l.size() - 1)
+					ctx.s++;
+			}
+			draw(cd);
+		} else {
+			const auto nd = ru::dim();
+			if (cd != nd) {
+				cd = nd;
+				draw(cd);
+			}
+		}
+	}
+}
+
+void tui(const std::vector<ZyanU8>& content, Listing&& listing)
+{
+	TuiCtx ctx { content, listing, 0 };
+	tui_main(ctx);
+}
+
 int main(int ac, char** av)
 {
 	// options
@@ -466,16 +570,12 @@ int main(int ac, char** av)
 	// handle skip list
 	std::vector<std::pair<size_t, size_t>> skip_ranges;
 	{
-		const auto skipArgs = MakeRanges(vm);
-		skip_ranges.insert(skip_ranges.end(), skipArgs.begin(), skipArgs.end());
-	}
-	{
-		const auto skipAuto = DetectStrings(content);
-		skip_ranges.insert(skip_ranges.end(), skipAuto.begin(), skipAuto.end());
-	}
-	{
-		const auto skipAuto = DetectRepeats(content);
-		skip_ranges.insert(skip_ranges.end(), skipAuto.begin(), skipAuto.end());
+		auto a = [&](auto&& nr) {
+			skip_ranges.insert(skip_ranges.end(), nr.begin(), nr.end());
+		};
+		a(MakeRanges(vm));
+		a(DetectStrings(content));
+		a(DetectRepeats(content));
 	}
 	CleanRanges(skip_ranges);
 
@@ -490,8 +590,13 @@ int main(int ac, char** av)
 	}
 
 	if (vm.count("tui") != 0 && vm["tui"].as<bool>()) {
+		Listing l;
+		LoadCode load { existingLabels, jumpLabels, l };
+		prc.loop(content, skip_ranges, load);
 		ru::cls();
 		ru::setCursor(false);
+		tui(content, std::move(l));
+		ru::cls();
 		ru::setCursor(true);
 		ru::resetColor();
 	} else {
