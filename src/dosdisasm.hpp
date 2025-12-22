@@ -1,7 +1,9 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -27,6 +29,36 @@ struct Cb {
 	virtual void onIns(const Ctx&, const ZydisDisassembledInstruction& /*instruction*/) const { }
 };
 
+struct AnalyzeLabels : Cb {
+	std::set<ZyanU64>& existingLabels;
+	std::set<ZyanU64>& jumpLabels;
+	AnalyzeLabels(std::set<ZyanU64>& el, std::set<ZyanU64>& jl);
+	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
+};
+
+enum class CType {
+	Code,
+	Dup,
+	Db,
+};
+
+struct Dumper : Cb {
+	const std::set<ZyanU64>& existingLabels;
+	const std::set<ZyanU64>& jumpLabels;
+	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl);
+	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str) const = 0;
+	template <typename... T>
+	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const fmt, const T&... args) const
+	{
+		char buffer[2048] {};
+		snprintf(buffer, sizeof(buffer), fmt, args...);
+		dumpStr(ctx, ct, sz, label, buffer);
+	}
+	virtual void onSkip(const Ctx& ctx, ZyanUSize size) const override;
+	virtual void onUnkByte(const Ctx& ctx, ZyanU8 skip) const override;
+	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
+};
+
 using Skips = std::vector<std::pair<size_t, size_t>>;
 using Content = std::vector<ZyanU8>;
 
@@ -35,12 +67,6 @@ struct Process {
 	ZydisFormatter formatter {};
 	Process();
 	void loop(const Content& content, const Skips& skip_ranges, const Cb& cb);
-};
-
-enum class CType {
-	Code,
-	Dup,
-	Db,
 };
 
 struct Item {
@@ -53,11 +79,40 @@ struct Item {
 
 using Listing = std::vector<Item>;
 
+template <typename... T>
+struct ActionStack {
+	using Action = std::function<void(bool, T...)>;
+	std::vector<Action> actions;
+	size_t index {};
+	void add(Action a, T... params)
+	{
+		actions.resize(index);
+		actions.emplace_back(a)(true, params...);
+		index++;
+	}
+	void undo(T... params)
+	{
+		if (index > 0)
+			actions[--index](false, params...);
+	}
+	void redo(T... params)
+	{
+		if (index < actions.size())
+			actions[index++](true, params...);
+	}
+};
+
 struct TuiCtx {
+	using As = ActionStack<TuiCtx&>;
+	As as {};
 	const Content& content;
+	Content rebuild;
+	Skips skips;
 	Listing l;
 	size_t start {};
 	size_t s {};
+	std::vector<std::tuple<char, std::string, As::Action>> actions {};
+	bool dirty { true };
 };
 
 Content ReadFile(const char* filename);
@@ -67,7 +122,7 @@ Skips DetectStrings(const Content& content);
 Skips DetectRepeats(const Content& content);
 Skips MakeRanges(const po::variables_map& vm);
 void CleanRanges(Skips& ranges);
-void Tui(const Content& content, Listing&& listing);
+void Tui(const Content& content, const Skips& skips);
 
 inline bool printable(char c)
 {
