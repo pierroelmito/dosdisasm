@@ -113,7 +113,7 @@ void TuiMainDrawLine(TuiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	ru::tprint(ru::Color::LIGHTMAGENTA);
 	const auto* start = &ctx.content[o.ra - 0x100];
 	if (o.sz > maxSz) {
-		lsz += ru::tprint("............ ");
+		lsz += ru::tprint("...          ");
 	} else {
 		for (int i = 0; i < maxSz; ++i) {
 			if (i < int(o.sz)) {
@@ -125,7 +125,7 @@ void TuiMainDrawLine(TuiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 		lsz += ru::tprint(" ");
 	}
 	if (o.sz > maxSz) {
-		lsz += ru::tprint("............ ");
+		lsz += ru::tprint("...          ");
 	} else {
 		for (int i = 0; i < maxSz; ++i) {
 			if (i < int(o.sz) && o.ra - 0x100 + i < ctx.rebuild.size()) {
@@ -194,82 +194,88 @@ void SkipRemove(TuiCtx& ctx, size_t i)
 	ctx.dirty = true;
 }
 
+std::string SetActions(TuiCtx& ctx, const Item* current)
+{
+	if (!current)
+		return {};
+	std::string status;
+	const auto nsi = GetNearestSkipIndex(ctx, current->ra);
+	const auto nsii = nsi.value_or(ctx.skips.size());
+	const auto si = GetSkipIndex(ctx, current->ra);
+	if (si) {
+		const auto [start, sz] = ctx.skips[*si];
+		status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";
+		{
+			ctx.actions.push_back({ '+', "+ : expand", [i = *si](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipExpand(ctx, i);
+									   else
+										   SkipShrink(ctx, i);
+								   } });
+		}
+		if (sz > 1) {
+			ctx.actions.push_back({ '-', "- : shrink", [i = *si](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipShrink(ctx, i);
+									   else
+										   SkipExpand(ctx, i);
+								   } });
+		}
+		if (sz > 1) {
+			ctx.actions.push_back({ 's', "s : shift right", [i = *si](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipShiftRight(ctx, i);
+									   else
+										   SkipShiftLeft(ctx, i);
+								   } });
+		}
+		if (start > 0) {
+			ctx.actions.push_back({ 'S', "S : shift left", [i = *si](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipShiftLeft(ctx, i);
+									   else
+										   SkipShiftRight(ctx, i);
+								   } });
+		}
+		{
+			std::pair<size_t, size_t> oskip = ctx.skips[*si];
+			ctx.actions.push_back({ 'x', "x : remove skip", [=](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipRemove(ctx, nsii);
+									   else
+										   SkipAdd(ctx, nsii, oskip);
+									   ;
+								   } });
+		}
+	} else {
+		status = "[" + std::to_string(nsii) + "] Code";
+		{
+			std::pair<size_t, size_t> nskip { current->ra - 0x100, 1 };
+			ctx.actions.push_back({ 'c', "c : add skip", [=](bool d, TuiCtx& ctx) {
+									   if (d)
+										   SkipAdd(ctx, nsii, nskip);
+									   else
+										   SkipRemove(ctx, nsii);
+									   ;
+								   } });
+		}
+	}
+	if (ctx.as.index > 0) {
+		ctx.actions.push_back({ 'u', "u : undo", {} });
+	}
+	if (ctx.as.index < ctx.as.actions.size()) {
+		ctx.actions.push_back({ 'U', "U : redo", {} });
+	}
+	return status;
+}
+
 void TuiMainDraw(TuiCtx& ctx, ru::Vec d, std::string& spaces)
 {
 	ctx.actions.clear();
 	if (int(spaces.size()) != d.x)
 		spaces = std::string(d.x, ' ');
 	const auto* current = ctx.s < ctx.l.size() ? &ctx.l[ctx.s] : nullptr;
-	std::string status;
-	if (current) {
-		const auto nsi = GetNearestSkipIndex(ctx, current->ra);
-		const auto nsii = nsi.value_or(ctx.skips.size());
-		const auto si = GetSkipIndex(ctx, current->ra);
-		if (si) {
-			const auto [start, sz] = ctx.skips[*si];
-			status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";
-			{
-				ctx.actions.push_back({ '+', "+ : expand", [i = *si](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipExpand(ctx, i);
-										   else
-											   SkipShrink(ctx, i);
-									   } });
-			}
-			if (sz > 1) {
-				ctx.actions.push_back({ '-', "- : shrink", [i = *si](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipShrink(ctx, i);
-										   else
-											   SkipExpand(ctx, i);
-									   } });
-			}
-			if (sz > 1) {
-				ctx.actions.push_back({ 's', "s : shift right", [i = *si](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipShiftRight(ctx, i);
-										   else
-											   SkipShiftLeft(ctx, i);
-									   } });
-			}
-			if (start > 0) {
-				ctx.actions.push_back({ 'S', "S : shift left", [i = *si](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipShiftLeft(ctx, i);
-										   else
-											   SkipShiftRight(ctx, i);
-									   } });
-			}
-			{
-				std::pair<size_t, size_t> oskip = ctx.skips[*si];
-				ctx.actions.push_back({ 'x', "x : remove skip", [=](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipRemove(ctx, nsii);
-										   else
-											   SkipAdd(ctx, nsii, oskip);
-										   ;
-									   } });
-			}
-		} else {
-			status = "[" + std::to_string(nsii) + "] Code";
-			{
-				std::pair<size_t, size_t> nskip { current->ra - 0x100, 1 };
-				ctx.actions.push_back({ 'c', "c : add skip", [=](bool d, TuiCtx& ctx) {
-										   if (d)
-											   SkipAdd(ctx, nsii, nskip);
-										   else
-											   SkipRemove(ctx, nsii);
-										   ;
-									   } });
-			}
-		}
-		if (ctx.as.index > 0) {
-			ctx.actions.push_back({ 'u', "u : undo", {} });
-		}
-		if (ctx.as.index < ctx.as.actions.size()) {
-			ctx.actions.push_back({ 'U', "U : redo", {} });
-		}
-	}
+	const std::string status = SetActions(ctx, current);
 	ru::cls();
 	ru::tprint(V { 1, 1 }, A { ru::Color::WHITE, ru::Color::BLUE }, "%s", spaces.c_str());
 	ru::tprint(V { 1, 1 }, ru::Color::WHITE, "%d %d - %lu of %lu", d.x, d.y, ctx.as.index, ctx.as.actions.size());

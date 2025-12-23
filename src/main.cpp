@@ -83,7 +83,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 				buffer[slen] = 0;
 				char label[64];
 				snprintf(label, sizeof(label), "l0x%04" PRIX64, ctx.runtime_address + i);
-				if (ctx.data[slen] == 0) {
+				if (slen < size && ctx.data[slen] == 0) {
 					dump(mkCtx(i), CType::Dup, slen, label, "db \"%s\", 0", buffer);
 					lastNl = i + slen + 1;
 					i += slen;
@@ -101,13 +101,17 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		else
 			bi += snprintf(buffer + bi, sizeof(buffer) - bi, ", 0x%02X", byte);
 		if (lastNl + 15 == i) {
-			dump(mkCtx(lastNl), CType::Dup, 1 + i - lastNl, nullptr, "%s", buffer);
+			char label[64];
+			snprintf(label, sizeof(label), "l0x%04" PRIX64, ctx.runtime_address);
+			dump(mkCtx(lastNl), CType::Dup, 1 + i - lastNl, lastNl == 0 ? label : nullptr, "%s", buffer);
 			lastNl = i + 1;
 			bi = 0;
 		}
 	}
 	if (bi != 0) {
-		dump(mkCtx(lastNl), CType::Dup, size - lastNl, nullptr, "%s", buffer);
+		char label[64];
+		snprintf(label, sizeof(label), "l0x%04" PRIX64, ctx.runtime_address);
+		dump(mkCtx(lastNl), CType::Dup, size - lastNl, lastNl == 0 ? label : nullptr, "%s", buffer);
 	}
 }
 
