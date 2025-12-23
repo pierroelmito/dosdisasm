@@ -5,11 +5,20 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <array>
 
 #include <boost/program_options.hpp>
 
 #include <Zydis/Formatter.h>
 #include <Zydis/Zydis.h>
+
+template <size_t N, typename... T>
+std::string Fmt(const char* fmt, T... args)
+{
+	char buffer[N];
+	snprintf(buffer, N, fmt, args...);
+	return buffer;
+}
 
 namespace po = boost::program_options;
 
@@ -42,21 +51,37 @@ enum class CType {
 	Db,
 };
 
+struct Tracker
+{
+	struct Reg {
+		union {
+			uint16_t X;
+			struct {
+				uint8_t L;
+				uint8_t H;
+			};
+		};
+	};
+	std::array<Reg, 4> regs;
+};
+
 struct Dumper : Cb {
 	const std::set<ZyanU64>& existingLabels;
 	const std::set<ZyanU64>& jumpLabels;
+	mutable Tracker trk{};
 	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl);
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str) const = 0;
+	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str, const char* const comment) const = 0;
 	template <typename... T>
-	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const fmt, const T&... args) const
+	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* comment, const char* const fmt, const T&... args) const
 	{
 		char buffer[2048] {};
 		snprintf(buffer, sizeof(buffer), fmt, args...);
-		dumpStr(ctx, ct, sz, label, buffer);
+		dumpStr(ctx, ct, sz, label, buffer, comment);
 	}
 	virtual void onSkip(const Ctx& ctx, ZyanUSize size) const override;
 	virtual void onUnkByte(const Ctx& ctx, ZyanU8 skip) const override;
 	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
+	std::string getComment(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const;
 };
 
 using Skips = std::vector<std::pair<size_t, size_t>>;
@@ -74,6 +99,7 @@ struct Item {
 	ZyanUSize sz {};
 	std::string label;
 	std::string asmc;
+	std::string comment;
 	CType ct {};
 };
 

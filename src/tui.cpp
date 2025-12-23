@@ -13,7 +13,7 @@ using A = std::pair<ru::Color, ru::Color>;
 struct LoadCode : Dumper {
 	Listing& listing;
 	LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Listing& l);
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str) const override;
+	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str, const char* const comment) const override;
 };
 
 LoadCode::LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Listing& l)
@@ -22,9 +22,9 @@ LoadCode::LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Lis
 {
 }
 
-void LoadCode::dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str) const
+void LoadCode::dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str, const char* const comment) const
 {
-	listing.push_back({ ctx.runtime_address, sz, label ? label : "", str, ct });
+	listing.push_back({ ctx.runtime_address, sz, label ? label : "", str, comment ? comment : "", ct });
 }
 
 void Recompile(TuiCtx& ctx)
@@ -71,7 +71,7 @@ ru::Color ColFromCt(CType ct)
 std::optional<size_t> GetNearestSkipIndex(TuiCtx& ctx, ZyanU64 ra)
 {
 	const std::pair<size_t, size_t> pos { ra - 0x100, 0 };
-	auto its = std::upper_bound(ctx.skips.begin(), ctx.skips.end(), pos);
+	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
 	if (its == ctx.skips.end())
 		return std::nullopt;
 	return std::distance(ctx.skips.begin(), its);
@@ -80,7 +80,7 @@ std::optional<size_t> GetNearestSkipIndex(TuiCtx& ctx, ZyanU64 ra)
 std::optional<size_t> GetSkipIndex(TuiCtx& ctx, ZyanU64 ra)
 {
 	const std::pair<size_t, size_t> pos { ra - 0x100, 0 };
-	auto its = std::upper_bound(ctx.skips.begin(), ctx.skips.end(), pos);
+	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
 	if (its == ctx.skips.end())
 		return std::nullopt;
 	if (pos.first < its->first || pos.first >= its->first + its->second)
@@ -146,6 +146,10 @@ void TuiMainDrawLine(TuiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 		lsz += ru::tprint(ru::Color::LIGHTCYAN, "%-8.8s: ", o.label.c_str());
 
 	lsz += ru::tprint(tcol, "%.*s", 64, o.asmc.c_str());
+
+	if (!o.comment.empty())
+		lsz += ru::tprint(ru::Color::BROWN, " ; %s", o.comment.c_str());
+
 	ru::tprint("%s", spaces.data() + lsz);
 
 	if (selected)
