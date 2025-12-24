@@ -307,17 +307,25 @@ void TuiMain(TuiCtx& ctx)
 	for (;;) {
 		if (ru::kbhit()) {
 			const char k = ru::getkey();
+			const auto rh = cd.y - 3;
 			if (k == 'q' || k == ru::KeyCode::KEY_ESCAPE) {
 				break;
 			} else if (k == ru::KeyCode::KEY_UP) {
 				if (ctx.s > 0)
 					ctx.s--;
-				ctx.start = std::min(ctx.start, ctx.s);
 			} else if (k == ru::KeyCode::KEY_DOWN) {
 				if (ctx.s < ctx.l.size() - 1)
 					ctx.s++;
-				if (ctx.s > ctx.start + cd.y - 3)
-					ctx.start = ctx.s - cd.y + 3;
+			} else if (k == ru::KeyCode::KEY_LEFT) {
+				if (ctx.s > rh)
+					ctx.s -= rh;
+				else
+					ctx.s = 0;
+			} else if (k == ru::KeyCode::KEY_RIGHT) {
+				if (ctx.s + rh < ctx.l.size())
+					ctx.s += rh;
+				else
+					ctx.s = ctx.l.size() - 1;
 			} else {
 				for (const auto& [ak, l, a] : ctx.actions) {
 					if (k == ak) {
@@ -330,6 +338,12 @@ void TuiMain(TuiCtx& ctx)
 						break;
 					}
 				}
+			}
+			// move view
+			{
+				ctx.start = std::min(ctx.start, ctx.s);
+				if (ctx.s > ctx.start + rh)
+					ctx.start = ctx.s - rh;
 			}
 			Recompile(ctx);
 			TuiMainDraw(ctx, cd, spaces);
