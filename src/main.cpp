@@ -224,6 +224,8 @@ Dumper::Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl)
 
 void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 {
+	// - use dw is size == 2
+	// - is only printable, use string
 	if (size > 4) {
 		auto* b = ctx.data;
 		auto* e = ctx.data + size;
@@ -236,6 +238,13 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 			dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "times %d db 0x%02X", size, *b);
 			return;
 		}
+	}
+	if (size == 2) {
+		char label[64];
+		snprintf(label, sizeof(label), "l0x%04" PRIX64, ctx.runtime_address);
+		const uint16_t s = (ctx.data[1] << 8) | ctx.data[0]; 
+		dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "dw 0x%04X", s);
+		return;
 	}
 	char buffer[2048];
 	char bi {};
@@ -255,7 +264,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 				return !printable(c);
 			});
 			const auto slen = std::distance(ctx.data + i, itf);
-			if (slen > 5) {
+			if (slen > 5 || (slen > 3 && slen == size) || (slen > 3 && slen == size - 1 && ctx.data[slen] == 0)) {
 				if (bi != 0) {
 					dump(mkCtx(lastNl), CType::Dup, i - lastNl, nullptr, std::nullopt, nullptr, "%s", buffer);
 				}
@@ -343,6 +352,7 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 		s,
 		instruction.text,
 		boost::is_any_of(" "));
+	s.erase(std::remove(s.begin(), s.end(), "dword"), s.end());
 	if (s.size() >= 2 && s[0] == "ret" && s[1] == "far") {
 		s.erase(s.begin());
 		s[0] = "retf";

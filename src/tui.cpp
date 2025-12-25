@@ -41,7 +41,7 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	ru::tprint(tcol);
 
 	const int maxSz = 6;
-	int lsz = ru::tprint("%3d ", 1 + icode);
+	int lsz = ru::tprint("%4d ", 1 + icode);
 	ru::tprint(ru::Color::LIGHTMAGENTA);
 	const auto* start = &ctx.content[o.ra - 0x100];
 	if (o.sz > maxSz) {
