@@ -9,10 +9,6 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include "rogueutil.hpp"
-
-namespace ru = rogueutil;
-
 Content ReadFile(const char* filename)
 {
 	FILE* file = fopen(filename, "rb");
@@ -49,7 +45,8 @@ bool HandleOptions(int ac, char** av, po::variables_map& vm)
 {
 	po::options_description desc("Allowed options");
 	desc.add_options()("help,h", "produce help message")(
-		"tui", po::bool_switch(), "use interface")(
+		"tui", po::bool_switch(), "use text mode interface")(
+		"gui", po::bool_switch(), "use graphical mode interface")(
 		"input,i", po::value<std::string>(), "input binary file to disassemble")(
 		"output,o", po::value<std::string>(),
 		"output asm file")("skip,k", po::value<std::vector<std::string>>(),

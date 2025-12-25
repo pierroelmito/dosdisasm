@@ -1,11 +1,11 @@
 
 #pragma once
 
+#include <array>
 #include <functional>
 #include <string>
 #include <tuple>
 #include <vector>
-#include <array>
 
 #include <boost/program_options.hpp>
 
@@ -51,8 +51,7 @@ enum class CType {
 	Db,
 };
 
-struct Tracker
-{
+struct Tracker {
 	struct Reg {
 		union {
 			uint16_t X;
@@ -68,15 +67,15 @@ struct Tracker
 struct Dumper : Cb {
 	const std::set<ZyanU64>& existingLabels;
 	const std::set<ZyanU64>& jumpLabels;
-	mutable Tracker trk{};
+	mutable Tracker trk {};
 	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl);
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* const str, const char* const comment) const = 0;
+	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const = 0;
 	template <typename... T>
-	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, const char* comment, const char* const fmt, const T&... args) const
+	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* comment, const char* const fmt, const T&... args) const
 	{
 		char buffer[2048] {};
 		snprintf(buffer, sizeof(buffer), fmt, args...);
-		dumpStr(ctx, ct, sz, label, buffer, comment);
+		dumpStr(ctx, ct, sz, label, jump, buffer, comment);
 	}
 	virtual void onSkip(const Ctx& ctx, ZyanUSize size) const override;
 	virtual void onUnkByte(const Ctx& ctx, ZyanU8 skip) const override;
@@ -96,6 +95,7 @@ struct Process {
 
 struct Item {
 	ZyanU64 ra {};
+	std::optional<ZyanU64> jump {};
 	ZyanUSize sz {};
 	std::string label;
 	std::string asmc;
@@ -105,42 +105,6 @@ struct Item {
 
 using Listing = std::vector<Item>;
 
-template <typename... T>
-struct ActionStack {
-	using Action = std::function<void(bool, T...)>;
-	std::vector<Action> actions;
-	size_t index {};
-	void add(Action a, T... params)
-	{
-		actions.resize(index);
-		actions.emplace_back(a)(true, params...);
-		index++;
-	}
-	void undo(T... params)
-	{
-		if (index > 0)
-			actions[--index](false, params...);
-	}
-	void redo(T... params)
-	{
-		if (index < actions.size())
-			actions[index++](true, params...);
-	}
-};
-
-struct TuiCtx {
-	using As = ActionStack<TuiCtx&>;
-	As as {};
-	const Content& content;
-	Content rebuild;
-	Skips skips;
-	Listing l;
-	size_t start {};
-	size_t s {};
-	std::vector<std::tuple<char, std::string, As::Action>> actions {};
-	bool dirty { true };
-};
-
 Content ReadFile(const char* filename);
 size_t FromString(const std::string& str);
 bool HandleOptions(int ac, char** av, po::variables_map& vm);
@@ -149,6 +113,7 @@ Skips DetectRepeats(const Content& content);
 Skips MakeRanges(const po::variables_map& vm);
 void CleanRanges(Skips& ranges);
 void Tui(const Content& content, const Skips& skips);
+void Gui(const Content& content, const Skips& skips);
 
 inline bool printable(char c)
 {

@@ -7,7 +7,7 @@ target("dosdisasm")
 	set_kind("binary")
 	add_files("src/*.cpp")
 	add_cxflags("-std=c++23")
-	add_links("Zydis", "boost_program_options")
+	add_links("Zydis", "boost_program_options", "raylib")
 	set_rundir(".")
 	if is_mode("debug") then
 		add_defines("DEBUG")
