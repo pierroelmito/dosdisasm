@@ -26,8 +26,7 @@ struct ActionStack {
 	}
 };
 
-struct Loc
-{
+struct Loc {
 	size_t start {};
 	size_t s {};
 };
@@ -35,11 +34,12 @@ struct Loc
 struct UiCtx {
 	using As = ActionStack<UiCtx&>;
 	As as {};
+	const ZyanU64 ra{};	
 	const Content& content;
 	Content rebuild;
 	Skips skips;
 	Listing l;
-	Loc loc{};
+	Loc loc {};
 	std::vector<std::tuple<char, std::string, As::Action>> actions {};
 	bool dirty { true };
 	std::optional<ZyanU64> jump {};

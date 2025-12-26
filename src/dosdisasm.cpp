@@ -173,12 +173,12 @@ Process::Process()
 	ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 }
 
-void Process::loop(const Content& content, const Skips& skip_ranges, const Cb& cb)
+void Process::loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges, const Cb& cb)
 {
 	const size_t file_size = content.size();
 	const ZyanU8* const data = &content[0];
 
-	ZyanU64 runtime_address = 0x100;
+	ZyanU64 runtime_address = ra;
 	ZyanUSize offset = 0;
 	ZydisDisassembledInstruction instruction;
 	auto itskip = skip_ranges.begin();

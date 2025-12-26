@@ -43,7 +43,7 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	const int maxSz = 6;
 	int lsz = ru::tprint("%4d ", 1 + icode);
 	ru::tprint(ru::Color::LIGHTMAGENTA);
-	const auto* start = &ctx.content[o.ra - 0x100];
+	const auto* start = &ctx.content[o.ra - ctx.ra];
 	if (o.sz > maxSz) {
 		lsz += ru::tprint("...          ");
 	} else {
@@ -57,11 +57,12 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 		lsz += ru::tprint(" ");
 	}
 	if (o.sz > maxSz) {
+		ru::tprint(o.cmp != Cmp::Diff ? ru::Color::LIGHTGREEN : ru::Color::LIGHTRED);
 		lsz += ru::tprint("...          ");
 	} else {
 		for (int i = 0; i < maxSz; ++i) {
-			if (i < int(o.sz) && o.ra - 0x100 + i < ctx.rebuild.size()) {
-				const auto b = ctx.rebuild[o.ra - 0x100 + i];
+			if (i < int(o.sz) && o.ra - ctx.ra + i < ctx.rebuild.size()) {
+				const auto b = ctx.rebuild[o.ra - ctx.ra + i];
 				const bool same = start[i] == b;
 				ru::tprint(same ? ru::Color::LIGHTGREEN : ru::Color::LIGHTRED);
 				lsz += ru::tprint("%02X", b);
@@ -174,7 +175,8 @@ void TuiMain(UiCtx& ctx)
 
 void Tui(const Content& content, const Skips& skips)
 {
-	UiCtx ctx { {}, content, {}, skips, {}, {}, {}, true };
+	ZyanU64 ra { 0x100 };
+	UiCtx ctx { {}, ra, content, {}, skips, {}, {}, {}, true };
 	CheckRecompile(ctx);
 	ru::cls();
 	ru::setCursor(false);

@@ -28,13 +28,13 @@ void CheckRecompile(UiCtx& ctx)
 	std::set<ZyanU64> jumpLabels;
 	{
 		AnalyzeLabels anLbl { existingLabels, jumpLabels };
-		prc.loop(ctx.content, ctx.skips, anLbl);
+		prc.loop(ctx.ra, ctx.content, ctx.skips, anLbl);
 	}
 	ctx.l.clear();
 	LoadCode load { existingLabels, jumpLabels, ctx.l };
-	prc.loop(ctx.content, ctx.skips, load);
+	prc.loop(ctx.ra, ctx.content, ctx.skips, load);
 	FILE* out = fopen("gsgsgsgsgsg.asm", "w");
-	fprintf(out, "section .foo vstart=0x100\n");
+	fprintf(out, "section .foo vstart=0x%04lX\n", ctx.ra);
 	for (const auto& i : ctx.l) {
 		if (!i.label.empty())
 			fprintf(out, "%s: ", i.label.c_str());
@@ -44,11 +44,22 @@ void CheckRecompile(UiCtx& ctx)
 	std::system("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com");
 	// std::system("fasm gsgsgsgsgsg.asm gsgsgsgsgsg.com");
 	ctx.rebuild = ReadFile("gsgsgsgsgsg.com");
+	for (auto& i : ctx.l) {
+		bool equal = true;
+		for (auto j = i.ra - ctx.ra; equal && j < i.ra - ctx.ra + i.sz; ++j) {
+			if (j >= ctx.rebuild.size() || ctx.content[j] != ctx.rebuild[j])
+				equal = false;
+		}
+		if (equal)
+			i.cmp = Cmp::Same;
+		else
+			i.cmp = Cmp::Diff;
+	}
 }
 
 std::optional<size_t> GetNearestSkipIndex(UiCtx& ctx, ZyanU64 ra)
 {
-	const std::pair<size_t, size_t> pos { ra - 0x100, 0 };
+	const std::pair<size_t, size_t> pos { ra - ctx.ra, 0 };
 	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
 	if (its == ctx.skips.end())
 		return std::nullopt;
@@ -57,7 +68,7 @@ std::optional<size_t> GetNearestSkipIndex(UiCtx& ctx, ZyanU64 ra)
 
 std::optional<size_t> GetSkipIndex(UiCtx& ctx, ZyanU64 ra)
 {
-	const std::pair<size_t, size_t> pos { ra - 0x100, 0 };
+	const std::pair<size_t, size_t> pos { ra - ctx.ra, 0 };
 	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
 	if (its == ctx.skips.end())
 		return std::nullopt;
@@ -180,7 +191,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 		if (current->jump)
 			status += " jump to " + std::to_string(*current->jump);
 		{
-			std::pair<size_t, size_t> nskip { current->ra - 0x100, 1 };
+			std::pair<size_t, size_t> nskip { current->ra - ctx.ra, 1 };
 			ctx.actions.push_back({ 'c', "c : add skip", [=, loc = ctx.loc](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)

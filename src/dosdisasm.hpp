@@ -90,7 +90,14 @@ struct Process {
 	ZydisDecoder decoder {};
 	ZydisFormatter formatter {};
 	Process();
-	void loop(const Content& content, const Skips& skip_ranges, const Cb& cb);
+	void loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges, const Cb& cb);
+};
+
+enum class Cmp {
+	None,
+	Same,
+	Equi,
+	Diff,
 };
 
 struct Item {
@@ -101,6 +108,7 @@ struct Item {
 	std::string asmc;
 	std::string comment;
 	CType ct {};
+	Cmp cmp { Cmp::None };
 };
 
 using Listing = std::vector<Item>;

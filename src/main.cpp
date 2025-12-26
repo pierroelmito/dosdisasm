@@ -825,22 +825,23 @@ int main(int ac, char** av)
 	} else if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
 		Gui(content, skip_ranges);
 	} else {
+		const ZyanU64 ra = 0x100;
 		Process prc;
 		std::set<ZyanU64> existingLabels;
 		std::set<ZyanU64> jumpLabels;
 		{
 			AnalyzeLabels anLbl { existingLabels, jumpLabels };
-			prc.loop(content, skip_ranges, anLbl);
+			prc.loop(ra, content, skip_ranges, anLbl);
 		}
 		if (vm.count("output") != 0) {
 			FILE* out = fopen(vm["output"].as<std::string>().c_str(), "w");
 			GenerateAsmNoColor genAsm { existingLabels, jumpLabels, out };
-			prc.loop(content, skip_ranges, genAsm);
+			prc.loop(ra, content, skip_ranges, genAsm);
 			fclose(out);
 		} else {
 			FILE* out = stdout;
 			GenerateAsmColor genAsm { existingLabels, jumpLabels, out };
-			prc.loop(content, skip_ranges, genAsm);
+			prc.loop(ra, content, skip_ranges, genAsm);
 		}
 	}
 
