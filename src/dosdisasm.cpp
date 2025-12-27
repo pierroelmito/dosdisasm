@@ -47,7 +47,9 @@ bool HandleOptions(int ac, char** av, po::variables_map& vm)
 	// clang-format off
 	desc.add_options()
 		("help,h", "produce help message")
+#if ENABLE_TUI
 		("tui", po::bool_switch(), "use text mode interface")
+#endif
 #if ENABLE_GUI
 		("gui", po::bool_switch(), "use graphical mode interface")
 #endif

@@ -1,6 +1,8 @@
 
 #include "ui.hpp"
 
+#if ENABLE_TUI
+
 #include <algorithm>
 
 #include "rogueutil.hpp"
@@ -10,7 +12,7 @@ namespace ru = rogueutil;
 using V = ru::Vec;
 using A = std::pair<ru::Color, ru::Color>;
 
-ru::Color ColFromCt(CType ct)
+inline ru::Color ColFromCt(CType ct)
 {
 	switch (ct) {
 	case CType::Code:
@@ -19,6 +21,8 @@ ru::Color ColFromCt(CType ct)
 		return ru::Color::RED;
 	case CType::Dup:
 		return ru::Color::BLUE;
+	case CType::Ret:
+		return ru::Color::YELLOW;
 	}
 	return ru::Color::BLACK;
 }
@@ -177,9 +181,8 @@ void TuiMain(UiCtx& ctx)
 	}
 }
 
-void Tui(const Content& content, const Skips& skips)
+void Tui(const Content& content, const Skips& skips, ZyanU64 ra)
 {
-	ZyanU64 ra { 0x100 };
 	UiCtx ctx { {}, ra, content, {}, skips, {}, {}, {}, true };
 	CheckRecompile(ctx);
 	ru::cls();
@@ -189,3 +192,5 @@ void Tui(const Content& content, const Skips& skips)
 	ru::setCursor(true);
 	ru::resetColor();
 }
+
+#endif

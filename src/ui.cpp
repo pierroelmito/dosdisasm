@@ -3,11 +3,11 @@
 
 struct LoadCode : Dumper {
 	Listing& listing;
-	LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Listing& l);
+	LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing& l);
 	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const override;
 };
 
-LoadCode::LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Listing& l)
+LoadCode::LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing& l)
 	: Dumper(el, jl)
 	, listing(l)
 {
@@ -15,7 +15,7 @@ LoadCode::LoadCode(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, Lis
 
 void LoadCode::dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const
 {
-	listing.push_back({ ctx.runtime_address, jump, sz, label ? label : "", str, comment ? comment : "", ct });
+	listing.push_back({ ctx.runtime_address, jump, sz, label ? label : "", str, comment ? comment : "", 0, ct });
 }
 
 void CheckRecompile(UiCtx& ctx)
@@ -25,7 +25,7 @@ void CheckRecompile(UiCtx& ctx)
 	ctx.dirty = false;
 	Process prc;
 	std::set<ZyanU64> existingLabels;
-	std::set<ZyanU64> jumpLabels;
+	JumpFlagsMap jumpLabels;
 	{
 		AnalyzeLabels anLbl { existingLabels, jumpLabels };
 		prc.loop(ctx.ra, ctx.content, ctx.skips, anLbl);

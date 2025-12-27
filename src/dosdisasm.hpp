@@ -2,9 +2,7 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include <boost/program_options.hpp>
@@ -38,10 +36,19 @@ struct Cb {
 	virtual void onIns(const Ctx&, const ZydisDisassembledInstruction& /*instruction*/) const { }
 };
 
+enum class JumpFlag : uint8_t {
+	JUMP = 1 << 0,
+	CALL = 1 << 1,
+	DATA = 1 << 2,
+};
+
+using JumpFlags = uint8_t;
+using JumpFlagsMap = std::map<ZyanU64, JumpFlags>;
+
 struct AnalyzeLabels : Cb {
 	std::set<ZyanU64>& existingLabels;
-	std::set<ZyanU64>& jumpLabels;
-	AnalyzeLabels(std::set<ZyanU64>& el, std::set<ZyanU64>& jl);
+	JumpFlagsMap& jumpLabels;
+	AnalyzeLabels(std::set<ZyanU64>& el, JumpFlagsMap& jl);
 	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
 };
 
@@ -49,6 +56,7 @@ enum class CType {
 	Code,
 	Dup,
 	Db,
+	Ret,
 };
 
 struct Tracker {
@@ -66,10 +74,10 @@ struct Tracker {
 
 struct Dumper : Cb {
 	const std::set<ZyanU64>& existingLabels;
-	const std::set<ZyanU64>& jumpLabels;
+	const JumpFlagsMap& jumpLabels;
 	std::map<ZyanU64, const std::string> userLabels;
 	mutable Tracker trk {};
-	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl);
+	Dumper(const std::set<ZyanU64>& el, const JumpFlagsMap& jl);
 	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const = 0;
 	template <typename... T>
 	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* comment, const char* const fmt, const T&... args) const
@@ -108,6 +116,7 @@ struct Item {
 	std::string label;
 	std::string asmc;
 	std::string comment;
+	uint8_t jumpFlags {};
 	CType ct {};
 	Cmp cmp { Cmp::None };
 };
@@ -121,8 +130,14 @@ Skips DetectStrings(const Content& content);
 Skips DetectRepeats(const Content& content);
 Skips MakeRanges(const po::variables_map& vm);
 void CleanRanges(Skips& ranges);
-void Tui(const Content& content, const Skips& skips);
-void Gui(const Content& content, const Skips& skips);
+
+#if ENABLE_TUI
+void Tui(const Content& content, const Skips& skips, ZyanU64 ra);
+#endif
+
+#if ENABLE_GUI
+void Gui(const Content& content, const Skips& skips, ZyanU64 ra);
+#endif
 
 inline bool printable(char c)
 {

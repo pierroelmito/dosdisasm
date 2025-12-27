@@ -519,7 +519,7 @@ std::optional<ZyanU64> isShortJump(const ZydisDisassembledInstruction& instructi
 	return std::nullopt;
 }
 
-AnalyzeLabels::AnalyzeLabels(std::set<ZyanU64>& el, std::set<ZyanU64>& jl)
+AnalyzeLabels::AnalyzeLabels(std::set<ZyanU64>& el, JumpFlagsMap& jl)
 	: existingLabels(el)
 	, jumpLabels(jl)
 {
@@ -529,17 +529,18 @@ void AnalyzeLabels::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& in
 {
 	existingLabels.insert(ctx.runtime_address);
 	if (const auto ona = isShortJump(instruction, ctx.runtime_address, true)) {
-		jumpLabels.insert(*ona);
+		const bool isCall = instruction.info.mnemonic == ZYDIS_MNEMONIC_CALL;
+		jumpLabels[*ona] |= uint8_t(isCall ? JumpFlag::CALL : JumpFlag::JUMP);
 	}
 }
 
-Dumper::Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl)
+Dumper::Dumper(const std::set<ZyanU64>& el, const JumpFlagsMap& jl)
 	: existingLabels(el)
 	, jumpLabels(jl)
 {
 }
 
-void makeLabel(char buffer[64], ZyanU64 ra)
+void makeLabel(char buffer[64], ZyanU64 ra, uint8_t flags)
 {
 	if (ra == 0x2D1) {
 		strncpy(buffer, "pwait", 64);
@@ -554,7 +555,13 @@ void makeLabel(char buffer[64], ZyanU64 ra)
 		strncpy(buffer, "read_cur", 64);
 		return;
 	}
-	snprintf(buffer, 64, "L0x%04" PRIX64, ra);
+	if (flags == uint8_t(JumpFlag::CALL)) {
+		snprintf(buffer, 64, "C_%04" PRIX64, ra);
+	} else if (flags == uint8_t(JumpFlag::JUMP)) {
+		snprintf(buffer, 64, "J_%04" PRIX64, ra);
+	} else {
+		snprintf(buffer, 64, "D_%04" PRIX64, ra);
+	}
 }
 
 void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
@@ -569,14 +576,14 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		});
 		if (itf == e) {
 			char label[64];
-			makeLabel(label, ctx.runtime_address);
+			makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 			dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "times %d db 0x%02X", size, *b);
 			return;
 		}
 	}
 	if (size == 2) {
 		char label[64];
-		makeLabel(label, ctx.runtime_address);
+		makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 		const uint16_t s = (ctx.data[1] << 8) | ctx.data[0];
 		dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "dw 0x%04X", s);
 		return;
@@ -592,13 +599,13 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		};
 	};
 	ZyanUSize lastNl = 0;
-	for (auto i = 0u; i < size; ++i) {
+	for (size_t i = 0u; i < size; ++i) {
 		const ZyanU8 byte = ctx.data[i];
 		if (printable(byte)) {
 			const auto itf = std::find_if(ctx.data + i, ctx.data + size, [&](char c) {
 				return !printable(c);
 			});
-			const auto slen = std::distance(ctx.data + i, itf);
+			const size_t slen = std::distance(ctx.data + i, itf);
 			if (slen > 5 || (slen > 3 && slen == size) || (slen > 3 && slen == size - 1 && ctx.data[slen] == 0)) {
 				if (bi != 0) {
 					dump(mkCtx(lastNl), CType::Dup, i - lastNl, nullptr, std::nullopt, nullptr, "%s", buffer);
@@ -606,8 +613,8 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 				memcpy(buffer, ctx.data + i, slen);
 				buffer[slen] = 0;
 				char label[64];
-				makeLabel(label, ctx.runtime_address + i);
-				if (slen < int(size) && ctx.data[slen] == 0) {
+				makeLabel(label, ctx.runtime_address + i, uint8_t(JumpFlag::DATA));
+				if (slen < size && ctx.data[slen] == 0) {
 					dump(mkCtx(i), CType::Dup, slen, label, std::nullopt, nullptr, "db `%s`, 0", buffer);
 					lastNl = i + slen + 1;
 					i += slen;
@@ -626,7 +633,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 			bi += snprintf(buffer + bi, sizeof(buffer) - bi, ", 0x%02X", byte);
 		if (lastNl + 15 == i) {
 			char label[64];
-			makeLabel(label, ctx.runtime_address);
+			makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 			dump(mkCtx(lastNl), CType::Dup, 1 + i - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr, "%s", buffer);
 			lastNl = i + 1;
 			bi = 0;
@@ -634,7 +641,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 	}
 	if (bi != 0) {
 		char label[64];
-		makeLabel(label, ctx.runtime_address);
+		makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 		dump(mkCtx(lastNl), CType::Dup, size - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr, "%s", buffer);
 	}
 }
@@ -698,11 +705,11 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 
 void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const
 {
-	const auto ct = CType::Code;
+	auto ct = CType::Code;
 	const char* label = nullptr;
 	char buffer[64];
-	if (jumpLabels.find(ctx.runtime_address) != jumpLabels.end()) {
-		makeLabel(buffer, ctx.runtime_address);
+	if (auto itf = jumpLabels.find(ctx.runtime_address); itf != jumpLabels.end()) {
+		makeLabel(buffer, ctx.runtime_address, itf->second);
 		label = buffer;
 	}
 	std::vector<std::string> s;
@@ -711,9 +718,12 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 		instruction.text,
 		boost::is_any_of(" "));
 	s.erase(std::remove(s.begin(), s.end(), "dword"), s.end());
-	if (s.size() >= 2 && s[0] == "ret" && s[1] == "far") {
-		s.erase(s.begin());
-		s[0] = "retf";
+	if (s[0] == "ret") {
+		ct = CType::Ret;
+		if (s.size() >= 2 && s[1] == "far") {
+			s.erase(s.begin());
+			s[0] = "retf";
+		}
 	}
 	for (auto& w : s)
 		if (w == "ptr")
@@ -729,7 +739,8 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 			const char* prefix = "";
 			if (existingLabels.find(*ona) != existingLabels.end()) {
 				char jlabel[64];
-				makeLabel(jlabel, *ona);
+				const auto itf = jumpLabels.find(*ona);
+				makeLabel(jlabel, *ona, itf->second);
 				dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s%s %s", s[0].c_str(), prefix, jlabel);
 			} else {
 				dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s%s %s", s[0].c_str(), prefix, s[1].c_str());
@@ -746,7 +757,7 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 
 struct GenerateAsmColor : Dumper {
 	FILE* const outFile {};
-	GenerateAsmColor(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, FILE* o)
+	GenerateAsmColor(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, FILE* o)
 		: Dumper(el, jl)
 		, outFile(o)
 	{
@@ -784,7 +795,7 @@ struct GenerateAsmColor : Dumper {
 
 struct GenerateAsmNoColor : Dumper {
 	FILE* const outFile {};
-	GenerateAsmNoColor(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl, FILE* o)
+	GenerateAsmNoColor(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, FILE* o)
 		: Dumper(el, jl)
 		, outFile(o)
 	{
@@ -836,21 +847,25 @@ int main(int ac, char** av)
 	}
 	CleanRanges(skip_ranges);
 
+	const ZyanU64 ra = 0x100;
+
 	// run main loop
+#if ENABLE_TUI
 	if (vm.count("tui") != 0 && vm["tui"].as<bool>()) {
-		Tui(content, skip_ranges);
+		Tui(content, skip_ranges, ra);
+		return 0;
 	}
+#endif
 #if ENABLE_GUI
 	if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
-		Gui(content, skip_ranges);
+		Gui(content, skip_ranges, ra);
 		return 0;
 	}
 #endif
 	{
-		const ZyanU64 ra = 0x100;
 		Process prc;
 		std::set<ZyanU64> existingLabels;
-		std::set<ZyanU64> jumpLabels;
+		JumpFlagsMap jumpLabels;
 		{
 			AnalyzeLabels anLbl { existingLabels, jumpLabels };
 			prc.loop(ra, content, skip_ranges, anLbl);
