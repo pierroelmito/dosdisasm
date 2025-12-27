@@ -722,7 +722,7 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 	// const bool isJmp = s[0] == "jmp";
 	const auto comment = getComment(ctx, instruction);
 	const char* cmtPtr = comment.empty() ? nullptr : comment.c_str();
-	const bool isCall = true; //s[0] == "call";
+	const bool isCall = true; // s[0] == "call";
 	if (const auto ona = isShortJump(instruction, ctx.runtime_address, isCall)) {
 		if (s.size() == 2) {
 			// const char* prefix = isCall ? " near" : " short";
@@ -839,9 +839,14 @@ int main(int ac, char** av)
 	// run main loop
 	if (vm.count("tui") != 0 && vm["tui"].as<bool>()) {
 		Tui(content, skip_ranges);
-	} else if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
+	}
+#if ENABLE_GUI
+	if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
 		Gui(content, skip_ranges);
-	} else {
+		return 0;
+	}
+#endif
+	{
 		const ZyanU64 ra = 0x100;
 		Process prc;
 		std::set<ZyanU64> existingLabels;

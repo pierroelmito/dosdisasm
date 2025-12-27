@@ -1,6 +1,8 @@
 
 #include "ui.hpp"
 
+#if ENABLE_GUI
+
 #include <raylib.h>
 
 struct Dim {
@@ -127,3 +129,6 @@ void Gui(const Content& content, const Skips& skips)
 	}
 	CloseWindow();
 }
+
+#endif
+

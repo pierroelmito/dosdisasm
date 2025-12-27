@@ -44,13 +44,17 @@ size_t FromString(const std::string& str)
 bool HandleOptions(int ac, char** av, po::variables_map& vm)
 {
 	po::options_description desc("Allowed options");
-	desc.add_options()("help,h", "produce help message")(
-		"tui", po::bool_switch(), "use text mode interface")(
-		"gui", po::bool_switch(), "use graphical mode interface")(
-		"input,i", po::value<std::string>(), "input binary file to disassemble")(
-		"output,o", po::value<std::string>(),
-		"output asm file")("skip,k", po::value<std::vector<std::string>>(),
-		"<start>,<length> skip <length> bytes from <start>");
+	// clang-format off
+	desc.add_options()
+		("help,h", "produce help message")
+		("tui", po::bool_switch(), "use text mode interface")
+#if ENABLE_GUI
+		("gui", po::bool_switch(), "use graphical mode interface")
+#endif
+		("input,i", po::value<std::string>(), "input binary file to disassemble")
+		("output,o", po::value<std::string>(), "output asm file")
+		("skip,k", po::value<std::vector<std::string>>(), "<start>,<length> skip <length> bytes from <start>");
+	// clang-format on
 
 	po::store(po::parse_command_line(ac, av, desc), vm);
 	po::notify(vm);

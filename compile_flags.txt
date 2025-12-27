@@ -1,0 +1,8 @@
+-m64
+-fvisibility=hidden
+-fvisibility-inlines-hidden
+-Wall
+-Wextra
+-DENABLE_TUI=1
+-DENABLE_GUI=1
+-std=c++23
