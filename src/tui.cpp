@@ -108,7 +108,7 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces)
 	ru::tprint(V { 1, d.y }, ru::Color::WHITE);
 	ru::tprint("%s", status.c_str());
 	for (const auto& a : ctx.actions) {
-		ru::tprint(" | %s", std::get<1>(a).c_str());
+		ru::tprint(" | %s", actionLabels[std::get<0>(a)]);
 	}
 	ru::resetColor();
 	fflush(stdout);
@@ -117,6 +117,22 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces)
 void TuiMain(UiCtx& ctx)
 {
 	std::sort(ctx.skips.begin(), ctx.skips.end());
+
+	const std::map<char, Action> actionMap = {
+		{ ru::KeyCode::KEY_UP, Action::MoveUp },
+		{ ru::KeyCode::KEY_DOWN, Action::MoveDown },
+		{ ru::KeyCode::KEY_LEFT, Action::PageUp },
+		{ ru::KeyCode::KEY_RIGHT, Action::PageDown },
+		{ '+', Action::SkExpand },
+		{ '-', Action::SkShrink },
+		{ 's', Action::SkShiftRight },
+		{ 'S', Action::SkShiftLeft },
+		{ 'x', Action::SkRemove },
+		{ 'c', Action::SkAdd },
+		{ 'u', Action::Undo },
+		{ 'U', Action::Redo },
+	};
+
 	std::string spaces;
 	auto cd = ru::dim();
 	TuiMainDraw(ctx, cd, spaces);
@@ -124,34 +140,22 @@ void TuiMain(UiCtx& ctx)
 		if (ru::kbhit()) {
 			const char k = ru::getkey();
 			const auto rh = size_t(cd.y - 3);
-			if (k == 'q' || k == ru::KeyCode::KEY_ESCAPE) {
+			std::optional<Action> action {};
+			for (const auto& [key, act] : actionMap) {
+				if (k == key) {
+					action = act;
+					break;
+				}
+			}
+			if (k == 'q') {
 				break;
-			} else if (k == ru::KeyCode::KEY_UP) {
-				if (ctx.loc.s > 0)
-					ctx.loc.s--;
-			} else if (k == ru::KeyCode::KEY_DOWN) {
-				if (ctx.loc.s < ctx.l.size() - 1)
-					ctx.loc.s++;
-			} else if (k == ru::KeyCode::KEY_LEFT) {
-				if (ctx.loc.s > rh)
-					ctx.loc.s -= rh;
-				else
-					ctx.loc.s = 0;
-			} else if (k == ru::KeyCode::KEY_RIGHT) {
-				if (ctx.loc.s + rh < ctx.l.size())
-					ctx.loc.s += rh;
-				else
-					ctx.loc.s = ctx.l.size() - 1;
-			} else {
-				for (const auto& [ak, l, a] : ctx.actions) {
-					if (k == ak) {
-						if (ak == 'u')
-							ctx.as.undo(ctx);
-						else if (ak == 'U')
-							ctx.as.redo(ctx);
-						else
-							ctx.as.add(a, ctx);
-						break;
+			} else if (action) {
+				if (!BaseAction(ctx, *action, rh)) {
+					for (const auto& [ak, fn] : ctx.actions) {
+						if (*action == ak) {
+							ctx.as.add(fn, ctx);
+							break;
+						}
 					}
 				}
 			}

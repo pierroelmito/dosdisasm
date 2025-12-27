@@ -67,6 +67,7 @@ struct Tracker {
 struct Dumper : Cb {
 	const std::set<ZyanU64>& existingLabels;
 	const std::set<ZyanU64>& jumpLabels;
+	std::map<ZyanU64, const std::string> userLabels;
 	mutable Tracker trk {};
 	Dumper(const std::set<ZyanU64>& el, const std::set<ZyanU64>& jl);
 	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const = 0;
@@ -125,5 +126,7 @@ void Gui(const Content& content, const Skips& skips);
 
 inline bool printable(char c)
 {
+	if (c == '`')
+		return false;
 	return (c >= 32 && c < 127);
 }

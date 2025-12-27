@@ -3,6 +3,39 @@
 
 #include "dosdisasm.hpp"
 
+enum Action : size_t {
+	Quit,
+	MoveUp,
+	MoveDown,
+	PageUp,
+	PageDown,
+	SkExpand,
+	SkShrink,
+	SkShiftRight,
+	SkShiftLeft,
+	SkRemove,
+	SkAdd,
+	Undo,
+	Redo,
+	Count,
+};
+
+constexpr const char* const actionLabels[Action::Count] = {
+	"",
+	"",
+	"",
+	"",
+	"",
+	"expand",
+	"shrink",
+	"shift right",
+	"shift left",
+	"remove skip",
+	"add skip",
+	"undo",
+	"redo",
+};
+
 template <typename... T>
 struct ActionStack {
 	using Action = std::function<void(bool, T...)>;
@@ -34,13 +67,13 @@ struct Loc {
 struct UiCtx {
 	using As = ActionStack<UiCtx&>;
 	As as {};
-	const ZyanU64 ra{};	
+	const ZyanU64 ra {};
 	const Content& content;
 	Content rebuild;
 	Skips skips;
 	Listing l;
 	Loc loc {};
-	std::vector<std::tuple<char, std::string, As::Action>> actions {};
+	std::vector<std::tuple<Action, As::Action>> actions {};
 	bool dirty { true };
 	std::optional<ZyanU64> jump {};
 };
@@ -52,3 +85,4 @@ std::optional<size_t> GetSkipIndex(UiCtx& ctx, ZyanU64 ra);
 std::optional<size_t> GetCurrentSkipIndex(UiCtx& ctx);
 
 std::string SetActions(UiCtx& ctx, const Item* current);
+bool BaseAction(UiCtx& ctx, Action a, size_t rh);

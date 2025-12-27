@@ -140,7 +140,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 		const auto [start, sz] = ctx.skips[*si];
 		status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";
 		{
-			ctx.actions.push_back({ '+', "+ : expand", [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkExpand, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipExpand(ctx, i);
@@ -149,7 +149,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 								   } });
 		}
 		if (sz > 1) {
-			ctx.actions.push_back({ '-', "- : shrink", [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkShrink, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipShrink(ctx, i);
@@ -158,7 +158,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 								   } });
 		}
 		if (sz > 1) {
-			ctx.actions.push_back({ 's', "s : shift right", [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkShiftRight, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipShiftRight(ctx, i);
@@ -167,7 +167,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 								   } });
 		}
 		if (start > 0) {
-			ctx.actions.push_back({ 'S', "S : shift left", [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkShiftLeft, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipShiftLeft(ctx, i);
@@ -177,7 +177,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 		}
 		{
 			std::pair<size_t, size_t> oskip = ctx.skips[*si];
-			ctx.actions.push_back({ 'x', "x : remove skip", [=, loc = ctx.loc](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkRemove, [=, loc = ctx.loc](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipRemove(ctx, nsii);
@@ -192,7 +192,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 			status += " jump to " + std::to_string(*current->jump);
 		{
 			std::pair<size_t, size_t> nskip { current->ra - ctx.ra, 1 };
-			ctx.actions.push_back({ 'c', "c : add skip", [=, loc = ctx.loc](bool d, UiCtx& ctx) {
+			ctx.actions.push_back({ Action::SkAdd, [=, loc = ctx.loc](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
 										   SkipAdd(ctx, nsii, nskip);
@@ -203,10 +203,45 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 		}
 	}
 	if (ctx.as.index > 0) {
-		ctx.actions.push_back({ 'u', "u : undo", {} });
+		ctx.actions.push_back({ Action::Undo, {} });
 	}
 	if (ctx.as.index < ctx.as.actions.size()) {
-		ctx.actions.push_back({ 'U', "U : redo", {} });
+		ctx.actions.push_back({ Action::Redo, {} });
 	}
 	return status;
+}
+
+bool BaseAction(UiCtx& ctx, Action a, size_t rh)
+{
+	switch (a) {
+	case Action::MoveUp:
+		if (ctx.loc.s > 0)
+			ctx.loc.s--;
+		break;
+	case Action::MoveDown:
+		if (ctx.loc.s < ctx.l.size() - 1)
+			ctx.loc.s++;
+		break;
+	case Action::PageUp:
+		if (ctx.loc.s > rh)
+			ctx.loc.s -= rh;
+		else
+			ctx.loc.s = 0;
+		break;
+	case Action::PageDown:
+		if (ctx.loc.s + rh < ctx.l.size())
+			ctx.loc.s += rh;
+		else
+			ctx.loc.s = ctx.l.size() - 1;
+		break;
+	case Action::Undo:
+		ctx.as.undo(ctx);
+		break;
+	case Action::Redo:
+		ctx.as.redo(ctx);
+		break;
+	default:
+		return false;
+	}
+	return true;
 }
