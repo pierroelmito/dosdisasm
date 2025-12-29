@@ -2,6 +2,7 @@
 #pragma once
 
 #include "dosdisasm.hpp"
+#include "dumper.hpp"
 
 enum Action : size_t {
 	Quit,
@@ -65,16 +66,24 @@ struct Loc {
 };
 
 struct UiCtx {
+	UiCtx(const UiCtxParams& params);
+
 	using As = ActionStack<UiCtx&>;
 	As as {};
+
+	std::string filename {};
+	std::vector<std::string> header {};
+
 	const ZyanU64 ra {};
 	const Content& content;
 	Content rebuild;
 	Skips skips;
+	bool dirty { true };
+
 	Listing l;
+
 	Loc loc {};
 	std::vector<std::tuple<Action, As::Action>> actions {};
-	bool dirty { true };
 	std::optional<ZyanU64> jump {};
 };
 

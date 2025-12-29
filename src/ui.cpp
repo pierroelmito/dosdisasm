@@ -1,6 +1,16 @@
 
 #include "ui.hpp"
 
+#include <chrono>
+
+UiCtx::UiCtx(const UiCtxParams& params)
+	: filename(params.filename)
+	, ra(params.ra)
+	, content(params.content)
+	, skips(params.skips)
+{
+}
+
 struct LoadCode : Dumper {
 	Listing& listing;
 	LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing& l);
@@ -23,6 +33,18 @@ void CheckRecompile(UiCtx& ctx)
 	if (!ctx.dirty)
 		return;
 	ctx.dirty = false;
+
+	ctx.header.clear();
+	auto current = std::chrono::high_resolution_clock::now();
+	auto q = [&] (const char* lbl) {
+		auto nc = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(nc - current).count();
+		if (duration > 0) {
+			current = nc;
+			ctx.header.push_back(Fmt<256>("%s %lld ms", lbl, duration));
+		}
+	};
+
 	Process prc;
 	std::set<ZyanU64> existingLabels;
 	JumpFlagsMap jumpLabels;
@@ -33,6 +55,9 @@ void CheckRecompile(UiCtx& ctx)
 	ctx.l.clear();
 	LoadCode load { existingLabels, jumpLabels, ctx.l };
 	prc.loop(ctx.ra, ctx.content, ctx.skips, load);
+
+	q("load");
+
 	FILE* out = fopen("gsgsgsgsgsg.asm", "w");
 	fprintf(out, "section .foo vstart=0x%04lX\n", ctx.ra);
 	for (const auto& i : ctx.l) {
@@ -41,8 +66,14 @@ void CheckRecompile(UiCtx& ctx)
 		fprintf(out, "  %s\n", i.asmc.c_str());
 	}
 	fclose(out);
+
+	q("write");
+
 	std::system("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com");
 	// std::system("fasm gsgsgsgsgsg.asm gsgsgsgsgsg.com");
+
+	q("nasm");
+
 	ctx.rebuild = ReadFile("gsgsgsgsgsg.com");
 	for (auto& i : ctx.l) {
 		bool equal = true;
@@ -55,6 +86,8 @@ void CheckRecompile(UiCtx& ctx)
 		else
 			i.cmp = Cmp::Diff;
 	}
+
+	q("cmp");
 }
 
 std::optional<size_t> GetNearestSkipIndex(UiCtx& ctx, ZyanU64 ra)

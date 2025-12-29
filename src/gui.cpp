@@ -111,27 +111,34 @@ void GuiMainDraw(UiCtx& ctx, Assets& asst, Dim d)
 	ctx.actions.clear();
 	const auto* current = ctx.loc.s < ctx.l.size() ? &ctx.l[ctx.loc.s] : nullptr;
 	const std::string status = SetActions(ctx, current);
-
-	DrawRectangleRec({ 0, 0, float(d.w), asst.sz }, BLUE);
-	GuiPrintf(asst, d, 0, 0, WHITE, "%d %d - %lu of %lu", d.w, d.h, ctx.as.index, ctx.as.actions.size());
-
 	const int count = int(d.h / asst.sz);
+
+	{
+		DrawRectangleRec({ 0, 0, float(d.w), asst.sz }, BLUE);
+		int x = GuiPrintf(asst, d, 0, 0, WHITE, "%s", ctx.filename.c_str());
+		for (const auto& h : ctx.header) {
+			x += GuiPrintf(asst, d, x, 0, WHITE, " - %s", h.c_str());
+		}
+	}
+
 	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < count - 2; ++icode) {
 		if (icode < int(ctx.l.size()))
 			GuiMainDrawLine(ctx, asst, d, 1 + icode - int(ctx.loc.start), icode);
 	}
 
-	DrawRectangleRec({ 0, (d.rows - 1) * asst.sz, float(d.w), asst.sz }, BLUE);
-	int x = GuiPrintf(asst, d, 0, count - 1, WHITE, "%s", "status");
-	for (const auto& a : ctx.actions) {
-		x += GuiPrintf(asst, d, x, count - 1, WHITE, " | %s", actionLabels[std::get<0>(a)]);
+	{
+		DrawRectangleRec({ 0, (d.rows - 1) * asst.sz, float(d.w), asst.sz }, BLUE);
+		int x = GuiPrintf(asst, d, 0, count - 1, WHITE, "%s", "status");
+		for (const auto& a : ctx.actions) {
+			x += GuiPrintf(asst, d, x, count - 1, WHITE, " | %s", actionLabels[std::get<0>(a)]);
+		}
 	}
 }
 
-void Gui(const Content& content, const Skips& skips, ZyanU64 ra)
+void Gui(const UiCtxParams& params)
 {
 	Assets asst {};
-	UiCtx ctx { {}, ra, content, {}, skips, {}, {}, {}, true };
+	UiCtx ctx(params);
 	CheckRecompile(ctx);
 	InitWindow(800, 600, "dosdisasm");
 	SetTargetFPS(30);
