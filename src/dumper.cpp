@@ -8,7 +8,8 @@
 #include "dosdisasm.hpp"
 
 extern const std::map<uint16_t, std::pair<const char*, const char*>> portInfo;
-extern const std::map<std::pair<uint8_t, uint8_t>, const char*> interruptInfo;
+extern const std::map<uint8_t, const char*> interruptInfo0;
+extern const std::map<std::pair<uint8_t, uint8_t>, const char*> interruptInfo1;
 
 Dumper::Dumper(const std::set<ZyanU64>& el, const JumpFlagsMap& jl)
 	: existingLabels(el)
@@ -90,8 +91,12 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 				if (bi != 0) {
 					dump(mkCtx(lastNl), CType::Dup, i - lastNl, nullptr, std::nullopt, nullptr, "%s", buffer);
 				}
-				memcpy(buffer, ctx.data + i, slen);
-				buffer[slen] = 0;
+				for (size_t si = 0, di = 0; si < slen; ++si, ++di) {
+					buffer[di] = ctx.data[i + si];
+					if (buffer[di] == '\\')
+						buffer[++di] = '\\';
+					buffer[di + 1] = 0;
+				}
 				char label[64];
 				makeLabel(label, ctx.runtime_address + i, uint8_t(JumpFlag::DATA));
 				if (slen < size && ctx.data[slen] == 0) {
@@ -135,12 +140,14 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 {
 	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_INT) {
 		if (instruction.info.operand_count_visible == 1) {
-			const std::pair<uint8_t, uint8_t> inti { uint8_t(instruction.operands[0].imm.value.u), trk.regs[0].H };
-			auto itf = interruptInfo.find(inti);
-			if (itf == interruptInfo.end())
-				return Fmt<32>("%02X.%02X", inti.first, inti.second);
+			const uint8_t int0 = uint8_t(instruction.operands[0].imm.value.u);
+			const std::pair<uint8_t, uint8_t> int1 { int0, trk.regs[0].H };
+			if (auto itf0 = interruptInfo0.find(int0); itf0 != interruptInfo0.end())
+				return Fmt<32>("%02X -> ", int0) + itf0->second;
+			if (auto itf1 = interruptInfo1.find(int1); itf1 != interruptInfo1.end())
+				return Fmt<32>("%02X.%02X -> ", int1.first, int1.second) + itf1->second;
 			else
-				return Fmt<32>("%02X.%02X -> ", inti.first, inti.second) + itf->second;
+				return Fmt<32>("%02X", int0);
 		}
 	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_IN) {
 		if (instruction.info.operand_count_visible == 2 && instruction.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
@@ -213,12 +220,13 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 	// const bool isJmp = s[0] == "jmp";
 	const auto comment = getComment(ctx, instruction);
 	const char* cmtPtr = comment.empty() ? nullptr : comment.c_str();
-	const bool isCall = true; // s[0] == "call";
+	// const bool isCall = true; // s[0] == "call";
+	const bool isCall = s[0] == "call";
 	if (const auto ona = IsShortJump(instruction, ctx.runtime_address, isCall)) {
 		if (s.size() == 2) {
-			// const char* prefix = isCall ? " near" : " short";
+			const char* prefix = isCall ? " near" : " short";
 			// const char* prefix = " near";
-			const char* prefix = "";
+			// const char* prefix = "";
 			if (existingLabels.find(*ona) != existingLabels.end()) {
 				char jlabel[64];
 				const auto itf = jumpLabels.find(*ona);
@@ -561,7 +569,11 @@ const std::map<uint16_t, std::pair<const char*, const char*>> portInfo = {
 	{ 0x064, { "8042 Keyboard command/status register", "" } },
 };
 
-const std::map<std::pair<uint8_t, uint8_t>, const char*> interruptInfo = {
+const std::map<uint8_t, const char*> interruptInfo0 = {
+	{ 0x20, "Program Terminate" },
+};
+
+const std::map<std::pair<uint8_t, uint8_t>, const char*> interruptInfo1 = {
 	// 0x10
 	{ { 0x10, 0x00 }, "Set video mode" },
 	{ { 0x10, 0x01 }, "Set cursor type" },

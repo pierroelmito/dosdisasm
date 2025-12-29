@@ -36,7 +36,7 @@ void CheckRecompile(UiCtx& ctx)
 
 	ctx.header.clear();
 	auto current = std::chrono::high_resolution_clock::now();
-	auto q = [&] (const char* lbl) {
+	auto q = [&](const char* lbl) {
 		auto nc = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(nc - current).count();
 		if (duration > 0) {

@@ -106,7 +106,7 @@ void GuiMainDrawLine(UiCtx& ctx, Assets& asst, Dim d, int y, int icode)
 		GuiPrintf(asst, d, xCode + sz, y, GREEN, " ; %s", o.comment.c_str());
 }
 
-void GuiMainDraw(UiCtx& ctx, Assets& asst, Dim d)
+void GuiMainDraw(UiCtx& ctx, Assets& asst, Dim d, int reserved)
 {
 	ctx.actions.clear();
 	const auto* current = ctx.loc.s < ctx.l.size() ? &ctx.l[ctx.loc.s] : nullptr;
@@ -121,7 +121,7 @@ void GuiMainDraw(UiCtx& ctx, Assets& asst, Dim d)
 		}
 	}
 
-	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < count - 2; ++icode) {
+	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < count - 2 - reserved; ++icode) {
 		if (icode < int(ctx.l.size()))
 			GuiMainDrawLine(ctx, asst, d, 1 + icode - int(ctx.loc.start), icode);
 	}
@@ -172,7 +172,8 @@ void Gui(const UiCtxParams& params)
 			int(GetScreenHeight() / asst.sz)
 		};
 		const auto thisTime = GetTime();
-		const auto rh = size_t(d.rows - 3);
+		const int r = 0;
+		const auto rh = size_t(d.rows - 3 - r);
 		std::optional<Action> action {};
 		for (const auto& [key, act] : actionMap) {
 			if (IsKeyPressed(key) || (IsKeyDown(key) && thisTime > nextHit)) {
@@ -199,7 +200,7 @@ void Gui(const UiCtxParams& params)
 		}
 		BeginDrawing();
 		ClearBackground(clearColor);
-		GuiMainDraw(ctx, asst, d);
+		GuiMainDraw(ctx, asst, d, r);
 		EndDrawing();
 	}
 	CloseWindow();

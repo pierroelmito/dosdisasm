@@ -93,7 +93,7 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 		ru::resetColor();
 }
 
-void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<std::string, Action::Count>& actionKeys)
+void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<std::string, Action::Count>& actionKeys, int r)
 {
 	ctx.actions.clear();
 	const auto* current = ctx.loc.s < ctx.l.size() ? &ctx.l[ctx.loc.s] : nullptr;
@@ -107,7 +107,7 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 		ru::tprint(" - %s", h.c_str());
 	}
 	ru::resetColor();
-	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < d.y - 2; ++icode) {
+	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < d.y - 2 - r; ++icode) {
 		if (icode < int(ctx.l.size()))
 			TuiMainDrawLine(ctx, d, spaces, icode);
 	}
@@ -153,11 +153,12 @@ void TuiMain(UiCtx& ctx)
 
 	std::string spaces;
 	auto cd = ru::dim();
-	TuiMainDraw(ctx, cd, spaces, actionKeys);
+	const int r = 0;
+	TuiMainDraw(ctx, cd, spaces, actionKeys, r);
 	for (;;) {
 		if (ru::kbhit()) {
 			const char k = ru::getkey();
-			const auto rh = size_t(cd.y - 3);
+			const auto rh = size_t(cd.y - 3 - r);
 			std::optional<Action> action {};
 			for (const auto& [key, act] : actionMap) {
 				if (k == key) {
@@ -184,12 +185,12 @@ void TuiMain(UiCtx& ctx)
 					ctx.loc.start = ctx.loc.s - rh;
 			}
 			CheckRecompile(ctx);
-			TuiMainDraw(ctx, cd, spaces, actionKeys);
+			TuiMainDraw(ctx, cd, spaces, actionKeys, r);
 		} else {
 			const auto nd = ru::dim();
 			if (cd != nd) {
 				cd = nd;
-				TuiMainDraw(ctx, cd, spaces, actionKeys);
+				TuiMainDraw(ctx, cd, spaces, actionKeys, r);
 			}
 		}
 	}

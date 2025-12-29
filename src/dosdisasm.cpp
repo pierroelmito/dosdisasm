@@ -204,7 +204,7 @@ void Process::loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges,
 				continue;
 			}
 		}
-		auto nsync = std::min(offset + 4, itskip != skip_ranges.end() ? itskip->first : file_size);
+		auto nsync = std::min(offset + 6, itskip != skip_ranges.end() ? itskip->first : file_size);
 		const bool ok = ZYAN_SUCCESS(ZydisDisassembleIntel(
 			// ZYDIS_MACHINE_MODE_LONG_COMPAT_16,
 			ZYDIS_MACHINE_MODE_LEGACY_16,
