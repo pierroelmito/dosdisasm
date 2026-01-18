@@ -85,6 +85,8 @@ struct UiCtx {
 	Loc loc {};
 	std::vector<std::tuple<Action, As::Action>> actions {};
 	std::optional<ZyanU64> jump {};
+
+	std::vector<std::string> nasmErrors {};
 };
 
 void CheckRecompile(UiCtx& ctx);

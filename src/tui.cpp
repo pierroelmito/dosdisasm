@@ -5,92 +5,91 @@
 
 #include <algorithm>
 
-#include "rogueutil.hpp"
+#include "rupp.hpp"
 
-namespace ru = rogueutil;
+namespace ru = rupp;
 
 using V = ru::Vec;
-using A = std::pair<ru::Color, ru::Color>;
 
-inline ru::Color ColFromCt(CType ct)
+inline ru::Fg ColFromCt(CType ct)
 {
 	switch (ct) {
 	case CType::Code:
-		return ru::Color::WHITE;
+		return ru::FgWhite;
 	case CType::Db:
-		return ru::Color::RED;
+		return ru::FgRed;
 	case CType::Dup:
-		return ru::Color::BLUE;
+		return ru::Fg { 39 };
+	case CType::Str:
+		return ru::FgGreen;
 	case CType::Ret:
-		return ru::Color::YELLOW;
+		return ru::FgYellow;
 	}
-	return ru::Color::BLACK;
+	return ru::FgBlack;
 }
 
 void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 {
-	const auto bgSelected = A { ru::Color::WHITE, ru::Color::RED };
-	const auto bgNormal = A { ru::Color::BROWN, ru::Color::NONE };
-	const auto bgHighlight = A { ru::Color::BROWN, ru::Color::BROWN };
+	const auto bgSelected = ru::Bg { 25 };
+	const auto bgNormal = ru::Bg { 235 };
+	const auto bgHighlight = ru::Bg { 58 };
 
 	const int y = icode - ctx.loc.start;
 	const auto& o = ctx.l[icode];
 	const bool selected = icode == int(ctx.loc.s);
 	const bool highlight = ctx.jump && o.ra == ctx.jump;
-	const auto tcol = highlight ? ru::Color::BLACK : ColFromCt(o.ct);
+	const auto tcol = ColFromCt(o.ct);
 	const auto col = highlight ? bgHighlight : (selected ? bgSelected : bgNormal);
 
-	ru::tprint(col);
-	ru::tprint(V { 1, y + 2 });
-	ru::tprint(tcol);
+	ru::put(tcol, V { 1, y + 2 });
 
 	const int maxSz = 6;
-	int lsz = ru::tprint("%4d ", 1 + icode);
-	ru::tprint(ru::Color::LIGHTMAGENTA);
+	int lsz = ru::fmt(col, "%4d ", 1 + icode);
+	ru::put(ru::FgLightMagenta);
 	const auto* start = &ctx.content[o.ra - ctx.ra];
 	if (o.sz > maxSz) {
-		lsz += ru::tprint("...          ");
+		lsz += ru::put("...          ");
 	} else {
 		for (int i = 0; i < maxSz; ++i) {
 			if (i < int(o.sz)) {
-				lsz += ru::tprint("%02X", start[i]);
+				lsz += ru::fmt("%02X", start[i]);
 			} else {
-				lsz += ru::tprint("  ");
+				lsz += ru::put("  ");
 			}
 		}
-		lsz += ru::tprint(" ");
+		lsz += ru::put(" ");
 	}
 	if (o.sz > maxSz) {
-		ru::tprint(o.cmp != Cmp::Diff ? ru::Color::LIGHTGREEN : ru::Color::LIGHTRED);
-		lsz += ru::tprint("...          ");
+		ru::put(o.cmp != Cmp::Diff ? ru::FgLightGreen : ru::FgLightRed);
+		lsz += ru::put("...          ");
 	} else {
 		for (int i = 0; i < maxSz; ++i) {
 			if (i < int(o.sz) && o.ra - ctx.ra + i < ctx.rebuild.size()) {
 				const auto b = ctx.rebuild[o.ra - ctx.ra + i];
 				const bool same = start[i] == b;
-				ru::tprint(same ? ru::Color::LIGHTGREEN : ru::Color::LIGHTRED);
-				lsz += ru::tprint("%02X", b);
+				ru::put(same ? ru::FgLightGreen : ru::FgLightRed);
+				lsz += ru::fmt("%02X", b);
 			} else {
-				lsz += ru::tprint("  ");
+				lsz += ru::put("  ");
 			}
 		}
-		lsz += ru::tprint(" ");
+		lsz += ru::put(" ");
 	}
 
 	if (o.label.empty())
-		lsz += ru::tprint(ru::Color::BROWN, "%04X      ", o.ra);
+		lsz += ru::fmt(ru::FgBrown, "%04X      ", o.ra);
 	else
-		lsz += ru::tprint(ru::Color::LIGHTCYAN, "%-8.8s: ", o.label.c_str());
+		lsz += ru::fmt(ru::FgLightCyan, "%-8.8s: ", o.label.c_str());
 
-	lsz += ru::tprint(tcol, "%.*s", 64, o.asmc.c_str());
+	lsz += ru::fmt(tcol, "%.*s", 64, o.asmc.c_str());
 
 	if (!o.comment.empty())
-		lsz += ru::tprint(ru::Color::BROWN, " ; %s", o.comment.c_str());
+		lsz += ru::fmt(ru::FgBrown, " ; %s", o.comment.c_str());
 
-	ru::tprint("%s", spaces.data() + lsz);
+	ru::fmt("%s", spaces.data() + lsz);
 
 	if (highlight || selected)
-		ru::resetColor();
+		ru::put(ru::Reset);
 }
 
 void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<std::string, Action::Count>& actionKeys, int r)
@@ -100,29 +99,43 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 	const std::string status = SetActions(ctx, current);
 	if (int(spaces.size()) != d.x)
 		spaces = std::string(d.x, ' ');
-	ru::cls();
-	ru::tprint(V { 1, 1 }, A { ru::Color::WHITE, ru::Color::BLUE }, "%s", spaces.c_str());
-	ru::tprint(V { 1, 1 }, ru::Color::WHITE, "%s", ctx.filename.c_str());
-	for (const auto& h : ctx.header) {
-		ru::tprint(" - %s", h.c_str());
-	}
-	ru::resetColor();
-	for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < d.y - 2 - r; ++icode) {
-		if (icode < int(ctx.l.size()))
-			TuiMainDrawLine(ctx, d, spaces, icode);
-	}
-	ru::tprint(V { 1, d.y }, A { ru::Color::WHITE, ru::Color::BLUE }, "%s", spaces.c_str());
-	ru::tprint(V { 1, d.y }, ru::Color::WHITE);
-	ru::tprint("%s", status.c_str());
-	for (const auto& a : ctx.actions) {
-		const auto action = std::get<0>(a);
-		if (!actionKeys[action].empty()) {
-			ru::tprint(" | ");
-			ru::tprint(ru::Color::YELLOW, "%s", actionKeys[action].c_str());
-			ru::tprint(ru::Color::WHITE, " : %s", actionLabels[action]);
+	ru::put(ru::Cls);
+
+	// header
+	{
+		ru::put(V { 1, 1 }, ru::FgWhite, ru::BgBlue, "%s", spaces.c_str());
+		ru::put(V { 1, 1 }, ru::FgWhite, "%s", ctx.filename.c_str());
+		ru::fmt(" - %lu", ctx.nasmErrors.size());
+		for (const auto& h : ctx.header) {
+			ru::put(" - %s", h.c_str());
 		}
 	}
-	ru::resetColor();
+
+	// code
+	{
+		ru::put(ru::Reset);
+		for (int icode = ctx.loc.start; icode - int(ctx.loc.start) < d.y - 2 - r; ++icode) {
+			if (icode < int(ctx.l.size()))
+				TuiMainDrawLine(ctx, d, spaces, icode);
+		}
+	}
+
+	// footer
+	{
+		ru::fmt(V { 1, d.y }, ru::FgWhite, ru::BgBlue, "%s", spaces.c_str());
+		ru::put(V { 1, d.y }, ru::FgWhite);
+		ru::fmt("%s", status.c_str());
+		for (const auto& a : ctx.actions) {
+			const auto action = std::get<0>(a);
+			if (!actionKeys[action].empty()) {
+				ru::put(" | ");
+				ru::put(ru::FgYellow, "%s", actionKeys[action].c_str());
+				ru::put(ru::FgWhite, " : %s", actionLabels[action]);
+			}
+		}
+	}
+
+	ru::put(ru::Reset);
 	fflush(stdout);
 }
 
@@ -131,10 +144,10 @@ void TuiMain(UiCtx& ctx)
 	std::sort(ctx.skips.begin(), ctx.skips.end());
 
 	const std::map<char, Action> actionMap = {
-		{ ru::KeyCode::KEY_UP, Action::MoveUp },
-		{ ru::KeyCode::KEY_DOWN, Action::MoveDown },
-		{ ru::KeyCode::KEY_LEFT, Action::PageUp },
-		{ ru::KeyCode::KEY_RIGHT, Action::PageDown },
+		{ ru::KeyCode::Up, Action::MoveUp },
+		{ ru::KeyCode::Down, Action::MoveDown },
+		{ ru::KeyCode::Left, Action::PageUp },
+		{ ru::KeyCode::Right, Action::PageDown },
 		{ '+', Action::SkExpand },
 		{ '-', Action::SkShrink },
 		{ 's', Action::SkShiftRight },
@@ -153,7 +166,7 @@ void TuiMain(UiCtx& ctx)
 
 	std::string spaces;
 	auto cd = ru::dim();
-	const int r = 0;
+	int r = int(ctx.nasmErrors.size());
 	TuiMainDraw(ctx, cd, spaces, actionKeys, r);
 	for (;;) {
 		if (ru::kbhit()) {
@@ -185,6 +198,7 @@ void TuiMain(UiCtx& ctx)
 					ctx.loc.start = ctx.loc.s - rh;
 			}
 			CheckRecompile(ctx);
+			r = int(ctx.nasmErrors.size());
 			TuiMainDraw(ctx, cd, spaces, actionKeys, r);
 		} else {
 			const auto nd = ru::dim();
@@ -200,12 +214,12 @@ void Tui(const UiCtxParams& params)
 {
 	UiCtx ctx(params);
 	CheckRecompile(ctx);
-	ru::cls();
+	ru::put(ru::Cls);
 	ru::setCursor(false);
 	TuiMain(ctx);
-	ru::cls();
+	ru::put(ru::Cls);
 	ru::setCursor(true);
-	ru::resetColor();
+	ru::put(ru::Reset);
 }
 
 #endif

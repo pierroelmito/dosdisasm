@@ -35,6 +35,8 @@ inline Color ColFromCt(CType ct)
 		return RED;
 	case CType::Dup:
 		return BLUE;
+	case CType::Str:
+		return GREEN;
 	case CType::Ret:
 		return YELLOW;
 	}
@@ -162,7 +164,6 @@ void Gui(const UiCtxParams& params)
 
 	std::sort(ctx.skips.begin(), ctx.skips.end());
 
-	auto nextHit = GetTime();
 	Color clearColor(25, 25, 25, 255);
 
 	while (!WindowShouldClose()) {
@@ -171,13 +172,11 @@ void Gui(const UiCtxParams& params)
 			GetScreenHeight(),
 			int(GetScreenHeight() / asst.sz)
 		};
-		const auto thisTime = GetTime();
 		const int r = 0;
 		const auto rh = size_t(d.rows - 3 - r);
 		std::optional<Action> action {};
 		for (const auto& [key, act] : actionMap) {
-			if (IsKeyPressed(key) || (IsKeyDown(key) && thisTime > nextHit)) {
-				nextHit = thisTime + 0.2;
+			if (IsKeyPressed(key) || IsKeyPressedRepeat(key)) {
 				action = act;
 				break;
 			}

@@ -10,7 +10,11 @@ target("dosdisasm")
 	set_kind("binary")
 	add_files("src/*.cpp")
 	add_cxflags("-std=c++23")
-	add_links("Zydis", "boost_program_options")
+	add_links({
+		"Zydis",
+		"boost_program_options",
+		"boost_process",
+	})
 	set_rundir(".")
 	add_defines("ENABLE_TUI=1")
 

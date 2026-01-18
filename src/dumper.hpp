@@ -7,6 +7,7 @@
 
 enum class CType {
 	Code,
+	Str,
 	Dup,
 	Db,
 	Ret,
@@ -26,18 +27,25 @@ struct Tracker {
 };
 
 struct Dumper : Cb {
+	struct DumpParams {
+		CType ct {};
+		ZyanUSize sz {};
+		const char* label {};
+		std::optional<ZyanU64> jump {};
+		const char* comment {};
+	};
 	const std::set<ZyanU64>& existingLabels;
 	const JumpFlagsMap& jumpLabels;
 	std::map<ZyanU64, const std::string> userLabels;
 	mutable Tracker trk {};
 	Dumper(const std::set<ZyanU64>& el, const JumpFlagsMap& jl);
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const = 0;
+	virtual void dumpStr(const Ctx& ctx, DumpParams p, const char* const str) const = 0;
 	template <typename... T>
-	inline constexpr void dump(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* comment, const char* const fmt, const T&... args) const
+	inline constexpr void dump(const Ctx& ctx, DumpParams p, const char* const fmt, const T&... args) const
 	{
 		char buffer[2048] {};
 		snprintf(buffer, sizeof(buffer), fmt, args...);
-		dumpStr(ctx, ct, sz, label, jump, buffer, comment);
+		dumpStr(ctx, p, buffer);
 	}
 	virtual void onSkip(const Ctx& ctx, ZyanUSize size) const override;
 	virtual void onUnkByte(const Ctx& ctx, ZyanU8 skip) const override;

@@ -3,11 +3,11 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include "rogueutil.hpp"
+#include "rupp.hpp"
 
 #include "dumper.hpp"
 
-namespace ru = rogueutil;
+namespace ru = rupp;
 
 std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address, bool anySize)
 {
@@ -47,27 +47,27 @@ struct GenerateAsmColor : Dumper {
 	}
 	virtual void finish() const override
 	{
-		ru::resetColor();
+		ru::put(ru::Reset);
 	}
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64>, const char* const str, const char* const comment) const override
+	virtual void dumpStr(const Ctx& ctx, DumpParams p, const char* const str) const override
 	{
-		ru::tprint(ru::Color::GREEN);
-		if (label != nullptr)
-			fprintf(outFile, "%s:\n", label);
-		ru::tprint(ct != CType::Code ? ru::Color::BLUE : ru::Color::WHITE);
+		ru::put(ru::FgGreen);
+		if (p.label != nullptr)
+			fprintf(outFile, "%s:\n", p.label);
+		ru::put(p.ct != CType::Code ? ru::FgBlue : ru::FgWhite);
 		fprintf(outFile, "  %s", str);
-		if (comment) {
-			ru::tprint(ru::Color::CYAN);
-			fprintf(outFile, " ; %s", comment);
+		if (p.comment) {
+			ru::put(ru::FgCyan);
+			fprintf(outFile, " ; %s", p.comment);
 		} else {
-			if (sz > 0) {
-				ru::tprint(ru::Color::CYAN);
-				if (sz < 8) {
+			if (p.sz > 0) {
+				ru::put(ru::FgCyan);
+				if (p.sz < 8) {
 					fprintf(outFile, " ; ");
-					for (ZyanUSize i = 0; i < sz; ++i)
+					for (ZyanUSize i = 0; i < p.sz; ++i)
 						fprintf(outFile, "%02X", ctx.data[i]);
 				} else {
-					fprintf(outFile, " ; %lu bytes", sz);
+					fprintf(outFile, " ; %lu bytes", p.sz);
 				}
 				fprintf(outFile, " at %lu / 0x%0lX", ctx.offset, ctx.offset);
 			}
@@ -83,21 +83,21 @@ struct GenerateAsmNoColor : Dumper {
 		, outFile(o)
 	{
 	}
-	virtual void dumpStr(const Ctx& ctx, CType, ZyanUSize sz, const char* label, std::optional<ZyanU64>, const char* const str, const char* const comment) const override
+	virtual void dumpStr(const Ctx& ctx, DumpParams p, const char* const str) const override
 	{
-		if (label != nullptr)
-			fprintf(outFile, "%s:\n", label);
+		if (p.label != nullptr)
+			fprintf(outFile, "%s:\n", p.label);
 		fprintf(outFile, "  %s", str);
-		if (comment) {
-			fprintf(outFile, " ; %s", comment);
+		if (p.comment) {
+			fprintf(outFile, " ; %s", p.comment);
 		} else {
-			if (sz > 0) {
-				if (sz < 8) {
+			if (p.sz > 0) {
+				if (p.sz < 8) {
 					fprintf(outFile, " ; ");
-					for (ZyanUSize i = 0; i < sz; ++i)
+					for (ZyanUSize i = 0; i < p.sz; ++i)
 						fprintf(outFile, "%02X", ctx.data[i]);
 				} else {
-					fprintf(outFile, " ; %lu bytes", sz);
+					fprintf(outFile, " ; %lu bytes", p.sz);
 				}
 				fprintf(outFile, " at %lu / 0x%0lX", ctx.offset, ctx.offset);
 			}

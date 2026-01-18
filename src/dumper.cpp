@@ -58,7 +58,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		if (itf == e) {
 			char label[64];
 			makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
-			dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "times %d db 0x%02X", size, *b);
+			dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "times %d db 0x%02X", size, *b);
 			return;
 		}
 	}
@@ -66,7 +66,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		char label[64];
 		makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 		const uint16_t s = (ctx.data[1] << 8) | ctx.data[0];
-		dump(ctx, CType::Dup, size, label, std::nullopt, nullptr, "dw 0x%04X", s);
+		dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "dw 0x%04X", s);
 		return;
 	}
 	char buffer[2048];
@@ -89,7 +89,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 			const size_t slen = std::distance(ctx.data + i, itf);
 			if (slen > 5 || (slen > 3 && slen == size) || (slen > 3 && slen == size - 1 && ctx.data[slen] == 0)) {
 				if (bi != 0) {
-					dump(mkCtx(lastNl), CType::Dup, i - lastNl, nullptr, std::nullopt, nullptr, "%s", buffer);
+					dump(mkCtx(lastNl), { CType::Str, i - lastNl, nullptr, std::nullopt, nullptr }, "%s", buffer);
 				}
 				for (size_t si = 0, di = 0; si < slen; ++si, ++di) {
 					buffer[di] = ctx.data[i + si];
@@ -100,11 +100,11 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 				char label[64];
 				makeLabel(label, ctx.runtime_address + i, uint8_t(JumpFlag::DATA));
 				if (slen < size && ctx.data[slen] == 0) {
-					dump(mkCtx(i), CType::Dup, slen, label, std::nullopt, nullptr, "db `%s`, 0", buffer);
+					dump(mkCtx(i), { CType::Str, slen, label, std::nullopt, nullptr }, "db `%s`, 0", buffer);
 					lastNl = i + slen + 1;
 					i += slen;
 				} else {
-					dump(mkCtx(i), CType::Dup, slen, label, std::nullopt, nullptr, "db `%s`", buffer);
+					dump(mkCtx(i), { CType::Str, slen, label, std::nullopt, nullptr }, "db `%s`", buffer);
 					lastNl = i + slen;
 					i += slen - 1;
 				}
@@ -119,7 +119,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		if (lastNl + 15 == i) {
 			char label[64];
 			makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
-			dump(mkCtx(lastNl), CType::Dup, 1 + i - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr, "%s", buffer);
+			dump(mkCtx(lastNl), { CType::Dup, 1 + i - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr }, "%s", buffer);
 			lastNl = i + 1;
 			bi = 0;
 		}
@@ -127,13 +127,13 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 	if (bi != 0) {
 		char label[64];
 		makeLabel(label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
-		dump(mkCtx(lastNl), CType::Dup, size - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr, "%s", buffer);
+		dump(mkCtx(lastNl), { CType::Dup, size - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr }, "%s", buffer);
 	}
 }
 
 void Dumper::onUnkByte(const Ctx& ctx, ZyanU8 skip) const
 {
-	dump(ctx, CType::Db, 1, nullptr, std::nullopt, nullptr, "db 0x%02X", skip);
+	dump(ctx, { CType::Db, 1, nullptr, std::nullopt, nullptr }, "db 0x%02X", skip);
 }
 
 std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& instruction) const
@@ -231,17 +231,17 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 				char jlabel[64];
 				const auto itf = jumpLabels.find(*ona);
 				makeLabel(jlabel, *ona, itf->second);
-				dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s%s %s", s[0].c_str(), prefix, jlabel);
+				dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s%s %s", s[0].c_str(), prefix, jlabel);
 			} else {
-				dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s%s %s", s[0].c_str(), prefix, s[1].c_str());
+				dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s%s %s", s[0].c_str(), prefix, s[1].c_str());
 			}
 		} else {
 			const std::string j = boost::algorithm::join(s, " ");
-			dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s", j.c_str());
+			dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s", j.c_str());
 		}
 	} else {
 		const std::string j = boost::algorithm::join(s, " ");
-		dump(ctx, ct, instruction.info.length, label, ona, cmtPtr, "%s", j.c_str());
+		dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s", j.c_str());
 	}
 }
 

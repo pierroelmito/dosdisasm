@@ -3,6 +3,8 @@
 
 #include <chrono>
 
+#include <boost/process.hpp>
+
 UiCtx::UiCtx(const UiCtxParams& params)
 	: filename(params.filename)
 	, ra(params.ra)
@@ -14,7 +16,7 @@ UiCtx::UiCtx(const UiCtxParams& params)
 struct LoadCode : Dumper {
 	Listing& listing;
 	LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing& l);
-	virtual void dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const override;
+	virtual void dumpStr(const Ctx& ctx, DumpParams p, const char* const str) const override;
 };
 
 LoadCode::LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing& l)
@@ -23,9 +25,38 @@ LoadCode::LoadCode(const std::set<ZyanU64>& el, const JumpFlagsMap& jl, Listing&
 {
 }
 
-void LoadCode::dumpStr(const Ctx& ctx, CType ct, ZyanUSize sz, const char* label, std::optional<ZyanU64> jump, const char* const str, const char* const comment) const
+void LoadCode::dumpStr(const Ctx& ctx, DumpParams p, const char* const str) const
 {
-	listing.push_back({ ctx.runtime_address, jump, sz, label ? label : "", str, comment ? comment : "", 0, ct });
+	listing.push_back({ ctx.runtime_address, p.jump, p.sz, p.label ? p.label : "", str, p.comment ? p.comment : "", 0, p.ct });
+}
+
+std::vector<std::string> RunNasm()
+{
+#if 1
+	std::vector<std::string> r;
+	FILE* in = popen("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com", "r");
+	if (in != nullptr) {
+		char line[1024];
+		while (fgets(line, sizeof(line), in) != nullptr) {
+			r.push_back(line);
+		}
+		pclose(in);
+	} else {
+		r = { "unable to run nasm" };
+	}
+	return r;
+#else
+	boost::asio::io_context ctx;
+	boost::asio::readable_pipe rp { ctx };
+
+	boost::process proc(ctx, "/usr/bin/g++", { "--version" }, boost::process::process_stdio { { /* in to default */ }, rp, { /* err to default */ } });
+	std::string output;
+
+	// boost::system::error_code ec;
+	// boost::asio::read(rp, boost::asio::dynamic_buffer(output), ec);
+	// assert(!ec || (ec == asio::error::eof));
+	// proc.wait();
+#endif
 }
 
 void CheckRecompile(UiCtx& ctx)
@@ -69,7 +100,8 @@ void CheckRecompile(UiCtx& ctx)
 
 	q("write");
 
-	std::system("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com");
+	ctx.nasmErrors = RunNasm();
+	// std::system("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com");
 	// std::system("fasm gsgsgsgsgsg.asm gsgsgsgsgsg.com");
 
 	q("nasm");

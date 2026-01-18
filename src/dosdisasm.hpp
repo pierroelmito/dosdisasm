@@ -85,9 +85,11 @@ void Tui(const UiCtxParams& params);
 void Gui(const UiCtxParams& params);
 #endif
 
-inline bool printable(char c)
+inline bool printable(unsigned char c)
 {
 	if (c == '`')
 		return false;
+	if (c == 0xa0)
+		return true;
 	return (c >= 32 && c < 127);
 }
