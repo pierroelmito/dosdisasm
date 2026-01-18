@@ -129,8 +129,8 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 			const auto action = std::get<0>(a);
 			if (!actionKeys[action].empty()) {
 				ru::put(" | ");
-				ru::put(ru::FgYellow, "%s", actionKeys[action].c_str());
-				ru::put(ru::FgWhite, " : %s", actionLabels[action]);
+				ru::fmt(ru::FgYellow, "%s", actionKeys[action].c_str());
+				ru::fmt(ru::FgWhite, " : %s", actionLabels[action]);
 			}
 		}
 	}
