@@ -204,7 +204,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 	if (si) {
 		const auto [start, sz] = ctx.skips[*si];
 		status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";
-		{
+		if (start + sz < ctx.content.size() && (*si == ctx.skips.size() - 1 || ctx.skips[*si + 1].first > start + sz)) {
 			ctx.actions.push_back({ Action::SkExpand, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
@@ -231,7 +231,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 										   SkipShiftLeft(ctx, i);
 								   } });
 		}
-		if (start > 0) {
+		if (start > 0 && (*si == 0 || ctx.skips[*si - 1].first + sz < start)) {
 			ctx.actions.push_back({ Action::SkShiftLeft, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)

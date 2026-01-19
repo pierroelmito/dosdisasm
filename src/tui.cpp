@@ -103,11 +103,11 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 
 	// header
 	{
-		ru::put(V { 1, 1 }, ru::FgWhite, ru::BgBlue, "%s", spaces.c_str());
-		ru::put(V { 1, 1 }, ru::FgWhite, "%s", ctx.filename.c_str());
+		ru::fmt(V { 1, 1 }, ru::BgBlue, "%s", spaces.c_str());
+		ru::fmt(V { 1, 1 }, ru::FgWhite, "%s", ctx.filename.c_str());
 		ru::fmt(" - %lu", ctx.nasmErrors.size());
 		for (const auto& h : ctx.header) {
-			ru::put(" - %s", h.c_str());
+			ru::fmt(" - %s", h.c_str());
 		}
 	}
 
@@ -122,7 +122,7 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 
 	// footer
 	{
-		ru::fmt(V { 1, d.y }, ru::FgWhite, ru::BgBlue, "%s", spaces.c_str());
+		ru::fmt(V { 1, d.y }, ru::BgBlue, "%s", spaces.c_str());
 		ru::put(V { 1, d.y }, ru::FgWhite);
 		ru::fmt("%s", status.c_str());
 		for (const auto& a : ctx.actions) {
