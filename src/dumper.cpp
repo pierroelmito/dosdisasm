@@ -136,6 +136,25 @@ void Dumper::onUnkByte(const Ctx& ctx, ZyanU8 skip) const
 	dump(ctx, { CType::Db, 1, nullptr, std::nullopt, nullptr }, "db 0x%02X", skip);
 }
 
+std::optional<ZyanI64> getMemOperand(const ZydisDecodedOperand& op)
+{
+	if (op.type != ZYDIS_OPERAND_TYPE_MEMORY)
+		return std::nullopt;
+	//if (op.mem.segment != ZYDIS_REGISTER_NONE) return std::nullopt;
+	if (op.mem.base != ZYDIS_REGISTER_NONE) return std::nullopt;
+	if (op.mem.index != ZYDIS_REGISTER_NONE) return std::nullopt;
+	auto v = op.mem.disp.value;
+	return v;
+}
+
+std::optional<ZyanI64> getImmOperand(const ZydisDecodedOperand& op)
+{
+	if (op.type != ZYDIS_OPERAND_TYPE_IMMEDIATE)
+		return std::nullopt;
+	auto v = op.imm.value.s;
+	return v;
+}
+
 std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& instruction) const
 {
 	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_INT) {
@@ -169,11 +188,6 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 		}
 	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_MOV) {
 		if (instruction.info.operand_count_visible == 2) {
-			if (instruction.operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY) {
-				return "mov!!";
-			} else if (instruction.operands[1].type == ZYDIS_OPERAND_TYPE_MEMORY) {
-				return "mov!!";
-			}
 			if (instruction.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER && instruction.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
 				for (int i = 0; i < 4; ++i) {
 					if (instruction.operands[0].reg.value == ZYDIS_REGISTER_AX + i) {
@@ -184,6 +198,13 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 						trk.regs[i].L = uint8_t(instruction.operands[1].imm.value.u);
 					}
 				}
+			}
+			if (auto mem = getMemOperand(instruction.operands[0]); mem) {
+				return "mov to " + Fmt<32>("0x%X", *mem);
+			} else if (auto mem = getMemOperand(instruction.operands[1]); mem) {
+				return "mov from " + Fmt<32>("0x%X", *mem);
+			} else if (auto imm = getImmOperand(instruction.operands[1]); imm) {
+				return "mov " + Fmt<32>("0x%X", *imm);
 			}
 		}
 	}

@@ -3,7 +3,9 @@
 
 #include <chrono>
 
-#include <boost/process.hpp>
+#include <boost/process/popen.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/asio.hpp>
 
 UiCtx::UiCtx(const UiCtxParams& params)
 	: filename(params.filename)
@@ -32,8 +34,8 @@ void LoadCode::dumpStr(const Ctx& ctx, DumpParams p, const char* const str) cons
 
 std::vector<std::string> RunNasm()
 {
-#if 1
 	std::vector<std::string> r;
+#if 1
 	FILE* in = popen("nasm gsgsgsgsgsg.asm -o gsgsgsgsgsg.com", "r");
 	if (in != nullptr) {
 		char line[1024];
@@ -44,19 +46,22 @@ std::vector<std::string> RunNasm()
 	} else {
 		r = { "unable to run nasm" };
 	}
-	return r;
 #else
-	boost::asio::io_context ctx;
-	boost::asio::readable_pipe rp { ctx };
-
-	boost::process proc(ctx, "/usr/bin/g++", { "--version" }, boost::process::process_stdio { { /* in to default */ }, rp, { /* err to default */ } });
-	std::string output;
-
-	// boost::system::error_code ec;
-	// boost::asio::read(rp, boost::asio::dynamic_buffer(output), ec);
-	// assert(!ec || (ec == asio::error::eof));
-	// proc.wait();
+	boost::asio::io_context io_context;
+	boost::process::popen proc(io_context.get_executor(), "nasm", {"gsgsgsgsgsg.asm", "-o", "gsgsgsgsgsg.com"});
+	boost::asio::streambuf buf;
+	boost::asio::read_until(proc, buf, '\0');
+	std::istream is(&buf);
+	std::string line;
+	while (std::getline(is, line)) {
+		r.push_back(line);
+	}
+	proc.wait();
+	//asio::write(proc, asio::buffer("main\n"));
+	//std::string line;
+	//asio::read_until(proc, asio::dynamic_buffer(line), '\n');
 #endif
+	return r;
 }
 
 void CheckRecompile(UiCtx& ctx)
