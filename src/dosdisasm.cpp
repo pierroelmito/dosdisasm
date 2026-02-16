@@ -4,10 +4,13 @@
 #include <cstdio>
 #include <cstring>
 
+#include <filesystem>
 #include <iostream>
 #include <ranges>
 
 #include <boost/algorithm/string.hpp>
+
+#include <sqlite3.h>
 
 Content ReadFile(const char* filename)
 {
@@ -54,6 +57,7 @@ bool HandleOptions(int ac, char** av, po::variables_map& vm)
 		("gui", po::bool_switch(), "use graphical mode interface")
 #endif
 		("input,i", po::value<std::string>(), "input binary file to disassemble")
+		("workfile,w", po::value<std::string>(), "work file")
 		("output,o", po::value<std::string>(), "output asm file")
 		("skip,k", po::value<std::vector<std::string>>(), "<start>,<length> skip <length> bytes from <start>");
 	// clang-format on
@@ -139,6 +143,57 @@ Skips MakeRanges(const po::variables_map& vm)
 		}
 	}
 	return skip_ranges;
+}
+
+namespace SQL {
+
+const char* InitDb = R"(
+DROP TABLE IF EXISTS skips;
+CREATE TABLE "skips" (
+"start" INTEGER,
+"length" INTEGER
+);
+)";
+
+}
+
+Skips MetaDataReadFromFile(const std::string& path)
+{
+	sqlite3* h {};
+	sqlite3_open(path.c_str(), &h);
+	if (!h)
+		return {};
+	Skips r;
+	auto cb = [](void* data, int c, char** val, char**) -> int {
+		if (c != 2)
+			return SQLITE_ERROR;
+		Skips& r = *((Skips*)data);
+		const int s = atol(val[0]);
+		const int l = atol(val[1]);
+		r.push_back({ s, l });
+		return SQLITE_OK;
+	};
+	const int resGet = sqlite3_exec(h, "SELECT * FROM skips;", cb, &r, nullptr);
+	if (resGet != SQLITE_OK)
+		return {};
+	return r;
+}
+
+void MetaDataSaveToFile(const Skips& skips, const std::string& path)
+{
+	sqlite3* h {};
+	sqlite3_open(path.c_str(), &h);
+	if (!h)
+		return;
+	const int resInit = sqlite3_exec(h, SQL::InitDb, nullptr, nullptr, nullptr);
+	if (resInit != SQLITE_OK)
+		return;
+	for (const auto& [s, l] : skips) {
+		const std::string query = "insert into skips values (" + std::to_string(s) + "," + std::to_string(l) + ");";
+		const int resInsert = sqlite3_exec(h, query.c_str(), nullptr, nullptr, nullptr);
+		if (resInsert != SQLITE_OK)
+			return;
+	}
 }
 
 void CleanRanges(Skips& ranges)

@@ -67,11 +67,14 @@ bool HandleOptions(int ac, char** av, po::variables_map& vm);
 Skips DetectStrings(const Content& content);
 Skips DetectRepeats(const Content& content);
 Skips MakeRanges(const po::variables_map& vm);
+Skips MetaDataReadFromFile(const std::string& path);
+void MetaDataSaveToFile(const Skips& skips, const std::string& path);
 void CleanRanges(Skips& ranges);
 std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address, bool anySize);
 
 struct UiCtxParams {
-	const std::string& filename;
+	const std::string& binFilename;
+	const std::string& workFilename;
 	const Content& content;
 	const Skips& skips;
 	ZyanU64 ra {};

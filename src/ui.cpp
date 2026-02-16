@@ -3,12 +3,13 @@
 
 #include <chrono>
 
-#include <boost/process/popen.hpp>
-#include <boost/asio/streambuf.hpp>
 #include <boost/asio.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/process/popen.hpp>
 
 UiCtx::UiCtx(const UiCtxParams& params)
-	: filename(params.filename)
+	: binFilename(params.binFilename)
+	, workFilename(params.workFilename)
 	, ra(params.ra)
 	, content(params.content)
 	, skips(params.skips)
@@ -48,7 +49,7 @@ std::vector<std::string> RunNasm()
 	}
 #else
 	boost::asio::io_context io_context;
-	boost::process::popen proc(io_context.get_executor(), "nasm", {"gsgsgsgsgsg.asm", "-o", "gsgsgsgsgsg.com"});
+	boost::process::popen proc(io_context.get_executor(), "nasm", { "gsgsgsgsgsg.asm", "-o", "gsgsgsgsgsg.com" });
 	boost::asio::streambuf buf;
 	boost::asio::read_until(proc, buf, '\0');
 	std::istream is(&buf);
@@ -57,9 +58,9 @@ std::vector<std::string> RunNasm()
 		r.push_back(line);
 	}
 	proc.wait();
-	//asio::write(proc, asio::buffer("main\n"));
-	//std::string line;
-	//asio::read_until(proc, asio::dynamic_buffer(line), '\n');
+	// asio::write(proc, asio::buffer("main\n"));
+	// std::string line;
+	// asio::read_until(proc, asio::dynamic_buffer(line), '\n');
 #endif
 	return r;
 }
@@ -206,6 +207,10 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 	const auto nsi = GetNearestSkipIndex(ctx, current->ra);
 	const auto nsii = nsi.value_or(ctx.skips.size());
 	const auto si = GetSkipIndex(ctx, current->ra);
+	if (!ctx.workFilename.empty()) {
+		ctx.actions.push_back({ Action::Write, {} });
+		ctx.actions.push_back({ Action::Read, {} });
+	}
 	if (si) {
 		const auto [start, sz] = ctx.skips[*si];
 		status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";

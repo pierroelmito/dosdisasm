@@ -121,28 +121,38 @@ int main(int ac, char** av)
 
 	// handle skip list
 	Skips skip_ranges;
-	{
-		auto a = [&](auto&& nr) {
-			skip_ranges.insert(skip_ranges.end(), nr.begin(), nr.end());
-		};
-		a(MakeRanges(vm));
-		a(DetectStrings(content));
-		a(DetectRepeats(content));
+	std::optional<std::string> workFilename;
+	if (vm.count("workfile") != 0) {
+		workFilename = vm["workfile"].as<std::string>();
+		skip_ranges = MetaDataReadFromFile(*workFilename);
 	}
-	CleanRanges(skip_ranges);
+	if (skip_ranges.empty()) {
+		{
+			auto a = [&](auto&& nr) {
+				skip_ranges.insert(skip_ranges.end(), nr.begin(), nr.end());
+			};
+			a(MakeRanges(vm));
+			a(DetectStrings(content));
+			a(DetectRepeats(content));
+		}
+		CleanRanges(skip_ranges);
+		if (workFilename) {
+			MetaDataSaveToFile(skip_ranges, *workFilename);
+		}
+	}
 
 	const ZyanU64 ra = 0x100;
 
 	// run main loop
 #if ENABLE_TUI
 	if (vm.count("tui") != 0 && vm["tui"].as<bool>()) {
-		Tui({ filename, content, skip_ranges, ra });
+		Tui({ filename, workFilename.value_or({}), content, skip_ranges, ra });
 		return 0;
 	}
 #endif
 #if ENABLE_GUI
 	if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
-		Gui({ filename, content, skip_ranges, ra });
+		Gui({ filename, workFilename.value_or({}), content, skip_ranges, ra });
 		return 0;
 	}
 #endif

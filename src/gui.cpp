@@ -117,7 +117,7 @@ void GuiMainDraw(UiCtx& ctx, Assets& asst, Dim d, int reserved)
 
 	{
 		DrawRectangleRec({ 0, 0, float(d.w), asst.sz }, BLUE);
-		int x = GuiPrintf(asst, d, 0, 0, WHITE, "%s", ctx.filename.c_str());
+		int x = GuiPrintf(asst, d, 0, 0, WHITE, "%s", ctx.binFilename.c_str());
 		for (const auto& h : ctx.header) {
 			x += GuiPrintf(asst, d, x, 0, WHITE, " - %s", h.c_str());
 		}

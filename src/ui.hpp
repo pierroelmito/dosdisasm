@@ -10,6 +10,8 @@ enum Action : size_t {
 	MoveDown,
 	PageUp,
 	PageDown,
+	Write,
+	Read,
 	SkExpand,
 	SkShrink,
 	SkShiftRight,
@@ -27,6 +29,8 @@ constexpr const char* const actionLabels[Action::Count] = {
 	"",
 	"",
 	"",
+	"write",
+	"read",
 	"expand",
 	"shrink",
 	"shift right",
@@ -71,7 +75,8 @@ struct UiCtx {
 	using As = ActionStack<UiCtx&>;
 	As as {};
 
-	std::string filename {};
+	std::string binFilename {};
+	std::string workFilename {};
 	std::vector<std::string> header {};
 
 	const ZyanU64 ra {};

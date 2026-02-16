@@ -14,6 +14,7 @@ target("dosdisasm")
 		"Zydis",
 		"boost_program_options",
 		"boost_process",
+		"sqlite3",
 	})
 	set_rundir(".")
 	add_defines("ENABLE_TUI=1")

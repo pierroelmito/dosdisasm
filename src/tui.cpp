@@ -104,7 +104,7 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 	// header
 	{
 		ru::fmt(V { 1, 1 }, ru::BgBlue, "%s", spaces.c_str());
-		ru::fmt(V { 1, 1 }, ru::FgWhite, "%s", ctx.filename.c_str());
+		ru::fmt(V { 1, 1 }, ru::FgWhite, "%s %s", ctx.binFilename.c_str(), ctx.workFilename.c_str());
 		ru::fmt(" - %lu", ctx.nasmErrors.size());
 		for (const auto& h : ctx.header) {
 			ru::fmt(" - %s", h.c_str());
@@ -148,6 +148,8 @@ void TuiMain(UiCtx& ctx)
 		{ ru::KeyCode::Down, Action::MoveDown },
 		{ ru::KeyCode::Left, Action::PageUp },
 		{ ru::KeyCode::Right, Action::PageDown },
+		{ 'w', Action::Write },
+		{ 'r', Action::Read },
 		{ '+', Action::SkExpand },
 		{ '-', Action::SkShrink },
 		{ 's', Action::SkShiftRight },
@@ -184,9 +186,15 @@ void TuiMain(UiCtx& ctx)
 			} else if (action) {
 				if (!BaseAction(ctx, *action, rh)) {
 					for (const auto& [ak, fn] : ctx.actions) {
-						if (*action == ak) {
-							ctx.as.add(fn, ctx);
-							break;
+						if (fn) {
+							if (*action == ak) {
+								ctx.as.add(fn, ctx);
+								break;
+							}
+						} else {
+							if (ak == Action::Write) {
+								MetaDataSaveToFile(ctx.skips, ctx.workFilename);
+							}
 						}
 					}
 				}
