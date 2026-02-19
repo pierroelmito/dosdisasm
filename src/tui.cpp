@@ -141,7 +141,7 @@ void TuiMainDraw(UiCtx& ctx, ru::Vec d, std::string& spaces, const std::array<st
 
 void TuiMain(UiCtx& ctx)
 {
-	std::sort(ctx.skips.begin(), ctx.skips.end());
+	std::sort(ctx.meta.skips.begin(), ctx.meta.skips.end());
 
 	const std::map<char, Action> actionMap = {
 		{ ru::KeyCode::Up, Action::MoveUp },
@@ -193,7 +193,7 @@ void TuiMain(UiCtx& ctx)
 							}
 						} else {
 							if (ak == Action::Write) {
-								MetaDataSaveToFile(ctx.skips, ctx.workFilename);
+								MetaDataSaveToFile(ctx.meta, ctx.workFilename);
 							}
 						}
 					}

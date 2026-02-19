@@ -12,7 +12,7 @@ UiCtx::UiCtx(const UiCtxParams& params)
 	, workFilename(params.workFilename)
 	, ra(params.ra)
 	, content(params.content)
-	, skips(params.skips)
+	, meta(params.meta)
 {
 }
 
@@ -87,11 +87,11 @@ void CheckRecompile(UiCtx& ctx)
 	JumpFlagsMap jumpLabels;
 	{
 		AnalyzeLabels anLbl { existingLabels, jumpLabels };
-		prc.loop(ctx.ra, ctx.content, ctx.skips, anLbl);
+		prc.loop(ctx.ra, ctx.content, ctx.meta, anLbl);
 	}
 	ctx.l.clear();
 	LoadCode load { existingLabels, jumpLabels, ctx.l };
-	prc.loop(ctx.ra, ctx.content, ctx.skips, load);
+	prc.loop(ctx.ra, ctx.content, ctx.meta, load);
 
 	q("load");
 
@@ -131,21 +131,21 @@ void CheckRecompile(UiCtx& ctx)
 std::optional<size_t> GetNearestSkipIndex(UiCtx& ctx, ZyanU64 ra)
 {
 	const std::pair<size_t, size_t> pos { ra - ctx.ra, 0 };
-	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
-	if (its == ctx.skips.end())
+	auto its = std::lower_bound(ctx.meta.skips.begin(), ctx.meta.skips.end(), pos);
+	if (its == ctx.meta.skips.end())
 		return std::nullopt;
-	return std::distance(ctx.skips.begin(), its);
+	return std::distance(ctx.meta.skips.begin(), its);
 }
 
 std::optional<size_t> GetSkipIndex(UiCtx& ctx, ZyanU64 ra)
 {
 	const std::pair<size_t, size_t> pos { ra - ctx.ra, 0 };
-	auto its = std::lower_bound(ctx.skips.begin(), ctx.skips.end(), pos);
-	if (its == ctx.skips.end())
+	auto its = std::lower_bound(ctx.meta.skips.begin(), ctx.meta.skips.end(), pos);
+	if (its == ctx.meta.skips.end())
 		return std::nullopt;
 	if (pos.first < its->first || pos.first >= its->first + its->second)
 		return std::nullopt;
-	return std::distance(ctx.skips.begin(), its);
+	return std::distance(ctx.meta.skips.begin(), its);
 }
 
 std::optional<size_t> GetCurrentSkipIndex(UiCtx& ctx)
@@ -158,21 +158,21 @@ std::optional<size_t> GetCurrentSkipIndex(UiCtx& ctx)
 
 void SkipShrink(UiCtx& ctx, size_t i)
 {
-	auto& skip = ctx.skips[i];
+	auto& skip = ctx.meta.skips[i];
 	skip.second -= 1;
 	ctx.dirty = true;
 }
 
 void SkipExpand(UiCtx& ctx, size_t i)
 {
-	auto& skip = ctx.skips[i];
+	auto& skip = ctx.meta.skips[i];
 	skip.second += 1;
 	ctx.dirty = true;
 }
 
 void SkipShiftLeft(UiCtx& ctx, size_t i)
 {
-	auto& skip = ctx.skips[i];
+	auto& skip = ctx.meta.skips[i];
 	skip.first -= 1;
 	skip.second += 1;
 	ctx.dirty = true;
@@ -180,7 +180,7 @@ void SkipShiftLeft(UiCtx& ctx, size_t i)
 
 void SkipShiftRight(UiCtx& ctx, size_t i)
 {
-	auto& skip = ctx.skips[i];
+	auto& skip = ctx.meta.skips[i];
 	skip.first += 1;
 	skip.second -= 1;
 	ctx.dirty = true;
@@ -188,13 +188,13 @@ void SkipShiftRight(UiCtx& ctx, size_t i)
 
 void SkipAdd(UiCtx& ctx, size_t i, std::pair<size_t, size_t> s)
 {
-	ctx.skips.insert(ctx.skips.begin() + i, s);
+	ctx.meta.skips.insert(ctx.meta.skips.begin() + i, s);
 	ctx.dirty = true;
 }
 
 void SkipRemove(UiCtx& ctx, size_t i)
 {
-	ctx.skips.erase(ctx.skips.begin() + i);
+	ctx.meta.skips.erase(ctx.meta.skips.begin() + i);
 	ctx.dirty = true;
 }
 
@@ -205,16 +205,16 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 	ctx.jump = current->jump;
 	std::string status;
 	const auto nsi = GetNearestSkipIndex(ctx, current->ra);
-	const auto nsii = nsi.value_or(ctx.skips.size());
+	const auto nsii = nsi.value_or(ctx.meta.skips.size());
 	const auto si = GetSkipIndex(ctx, current->ra);
 	if (!ctx.workFilename.empty()) {
 		ctx.actions.push_back({ Action::Write, {} });
 		ctx.actions.push_back({ Action::Read, {} });
 	}
 	if (si) {
-		const auto [start, sz] = ctx.skips[*si];
+		const auto [start, sz] = ctx.meta.skips[*si];
 		status = "[" + std::to_string(nsii) + "] Skip from " + std::to_string(start) + " (" + std::to_string(sz) + ")";
-		if (start + sz < ctx.content.size() && (*si == ctx.skips.size() - 1 || ctx.skips[*si + 1].first > start + sz)) {
+		if (start + sz < ctx.content.size() && (*si == ctx.meta.skips.size() - 1 || ctx.meta.skips[*si + 1].first > start + sz)) {
 			ctx.actions.push_back({ Action::SkExpand, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
@@ -241,7 +241,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 										   SkipShiftLeft(ctx, i);
 								   } });
 		}
-		if (start > 0 && (*si == 0 || ctx.skips[*si - 1].first + sz < start)) {
+		if (start > 0 && (*si == 0 || ctx.meta.skips[*si - 1].first + sz < start)) {
 			ctx.actions.push_back({ Action::SkShiftLeft, [loc = ctx.loc, i = *si](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)
@@ -251,7 +251,7 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 								   } });
 		}
 		{
-			std::pair<size_t, size_t> oskip = ctx.skips[*si];
+			std::pair<size_t, size_t> oskip = ctx.meta.skips[*si];
 			ctx.actions.push_back({ Action::SkRemove, [=, loc = ctx.loc](bool d, UiCtx& ctx) {
 									   ctx.loc = loc;
 									   if (d)

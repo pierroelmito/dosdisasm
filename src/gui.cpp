@@ -162,7 +162,7 @@ void Gui(const UiCtxParams& params)
 		//{ 'U', Action::Redo },
 	};
 
-	std::sort(ctx.skips.begin(), ctx.skips.end());
+	std::sort(ctx.meta.skips.begin(), ctx.meta.skips.end());
 
 	Color clearColor(25, 25, 25, 255);
 

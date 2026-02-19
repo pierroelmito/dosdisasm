@@ -9,6 +9,17 @@
 
 namespace ru = rupp;
 
+std::optional<ZyanI64> GetMemOperand(const ZydisDecodedOperand& op)
+{
+	if (op.type != ZYDIS_OPERAND_TYPE_MEMORY)
+		return std::nullopt;
+	//if (op.mem.segment != ZYDIS_REGISTER_NONE) return std::nullopt;
+	if (op.mem.base != ZYDIS_REGISTER_NONE) return std::nullopt;
+	if (op.mem.index != ZYDIS_REGISTER_NONE) return std::nullopt;
+	auto v = op.mem.disp.value;
+	return v;
+}
+
 std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address, bool anySize)
 {
 	if (instruction.info.meta.branch_type != ZYDIS_BRANCH_TYPE_NONE) {
@@ -17,6 +28,20 @@ std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instructi
 				ZyanU64 na {};
 				ZydisCalcAbsoluteAddress(&instruction.info, &instruction.operands[0], runtime_address, &na);
 				return na;
+			}
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<ZyanU64> GetMemRef(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address)
+{
+	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_MOV) {
+		if (instruction.info.operand_count_visible == 2) {
+			if (auto mem = GetMemOperand(instruction.operands[0]); mem) {
+				return mem;
+			} else if (auto mem = GetMemOperand(instruction.operands[1]); mem) {
+				return mem;
 			}
 		}
 	}
@@ -120,39 +145,46 @@ int main(int ac, char** av)
 		return 1;
 
 	// handle skip list
-	Skips skip_ranges;
+	MetaData meta;
 	std::optional<std::string> workFilename;
 	if (vm.count("workfile") != 0) {
 		workFilename = vm["workfile"].as<std::string>();
-		skip_ranges = MetaDataReadFromFile(*workFilename);
+		meta = MetaDataReadFromFile(*workFilename);
 	}
-	if (skip_ranges.empty()) {
+	if (meta.skips.empty()) {
 		{
 			auto a = [&](auto&& nr) {
-				skip_ranges.insert(skip_ranges.end(), nr.begin(), nr.end());
+				meta.skips.insert(meta.skips.end(), nr.begin(), nr.end());
 			};
 			a(MakeRanges(vm));
 			a(DetectStrings(content));
 			a(DetectRepeats(content));
 		}
-		CleanRanges(skip_ranges);
+		CleanRanges(meta.skips);
 		if (workFilename) {
-			MetaDataSaveToFile(skip_ranges, *workFilename);
+			MetaDataSaveToFile(meta, *workFilename);
 		}
 	}
+
+	meta.labels = {
+		{ 0x2D1, "pwait" },
+		{ 0x2D5, "lwait" },
+		{ 0x317, "set_cur" },
+		{ 0x324, "read_cur" },
+	};
 
 	const ZyanU64 ra = 0x100;
 
 	// run main loop
 #if ENABLE_TUI
 	if (vm.count("tui") != 0 && vm["tui"].as<bool>()) {
-		Tui({ filename, workFilename.value_or({}), content, skip_ranges, ra });
+		Tui({ filename, workFilename.value_or({}), content, meta, ra });
 		return 0;
 	}
 #endif
 #if ENABLE_GUI
 	if (vm.count("gui") != 0 && vm["gui"].as<bool>()) {
-		Gui({ filename, workFilename.value_or({}), content, skip_ranges, ra });
+		Gui({ filename, workFilename.value_or({}), content, meta, ra });
 		return 0;
 	}
 #endif
@@ -162,17 +194,17 @@ int main(int ac, char** av)
 		JumpFlagsMap jumpLabels;
 		{
 			AnalyzeLabels anLbl { existingLabels, jumpLabels };
-			prc.loop(ra, content, skip_ranges, anLbl);
+			prc.loop(ra, content, meta, anLbl);
 		}
 		if (vm.count("output") != 0) {
 			FILE* out = fopen(vm["output"].as<std::string>().c_str(), "w");
 			GenerateAsmNoColor genAsm { existingLabels, jumpLabels, out };
-			prc.loop(ra, content, skip_ranges, genAsm);
+			prc.loop(ra, content, meta, genAsm);
 			fclose(out);
 		} else {
 			FILE* out = stdout;
 			GenerateAsmColor genAsm { existingLabels, jumpLabels, out };
-			prc.loop(ra, content, skip_ranges, genAsm);
+			prc.loop(ra, content, meta, genAsm);
 		}
 	}
 

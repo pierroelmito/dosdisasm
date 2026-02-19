@@ -78,9 +78,9 @@ bool HandleOptions(int ac, char** av, po::variables_map& vm)
 	return true;
 }
 
-Skips DetectStrings(const Content& content)
+MetaData::Skips DetectStrings(const Content& content)
 {
-	Skips r;
+	MetaData::Skips r;
 	const ZyanUSize size = content.size();
 	const ZyanU8* const data = content.data();
 	for (auto i = 0u; i < size; ++i) {
@@ -102,9 +102,9 @@ Skips DetectStrings(const Content& content)
 	return r;
 }
 
-Skips DetectRepeats(const Content& content)
+MetaData::Skips DetectRepeats(const Content& content)
 {
-	Skips r;
+	MetaData::Skips r;
 	const ZyanUSize size = content.size();
 	const ZyanU8* const data = content.data();
 	for (auto i = 0u; i < size - 1; ++i) {
@@ -124,9 +124,9 @@ Skips DetectRepeats(const Content& content)
 	return r;
 }
 
-Skips MakeRanges(const po::variables_map& vm)
+MetaData::Skips MakeRanges(const po::variables_map& vm)
 {
-	Skips skip_ranges;
+	MetaData::Skips skip_ranges;
 	if (vm.count("skip") != 0) {
 		const auto skips = vm["skip"].as<std::vector<std::string>>();
 		for (const auto& skip : skips) {
@@ -157,20 +157,20 @@ CREATE TABLE "skips" (
 
 }
 
-Skips MetaDataReadFromFile(const std::string& path)
+MetaData MetaDataReadFromFile(const std::string& path)
 {
 	sqlite3* h {};
 	sqlite3_open(path.c_str(), &h);
 	if (!h)
 		return {};
-	Skips r;
+	MetaData r;
 	auto cb = [](void* data, int c, char** val, char**) -> int {
 		if (c != 2)
 			return SQLITE_ERROR;
-		Skips& r = *((Skips*)data);
+		MetaData& r = *((MetaData*)data);
 		const int s = atol(val[0]);
 		const int l = atol(val[1]);
-		r.push_back({ s, l });
+		r.skips.push_back({ s, l });
 		return SQLITE_OK;
 	};
 	const int resGet = sqlite3_exec(h, "SELECT * FROM skips;", cb, &r, nullptr);
@@ -179,7 +179,7 @@ Skips MetaDataReadFromFile(const std::string& path)
 	return r;
 }
 
-void MetaDataSaveToFile(const Skips& skips, const std::string& path)
+void MetaDataSaveToFile(const MetaData& meta, const std::string& path)
 {
 	sqlite3* h {};
 	sqlite3_open(path.c_str(), &h);
@@ -188,7 +188,7 @@ void MetaDataSaveToFile(const Skips& skips, const std::string& path)
 	const int resInit = sqlite3_exec(h, SQL::InitDb, nullptr, nullptr, nullptr);
 	if (resInit != SQLITE_OK)
 		return;
-	for (const auto& [s, l] : skips) {
+	for (const auto& [s, l] : meta.skips) {
 		const std::string query = "insert into skips values (" + std::to_string(s) + "," + std::to_string(l) + ");";
 		const int resInsert = sqlite3_exec(h, query.c_str(), nullptr, nullptr, nullptr);
 		if (resInsert != SQLITE_OK)
@@ -196,7 +196,7 @@ void MetaDataSaveToFile(const Skips& skips, const std::string& path)
 	}
 }
 
-void CleanRanges(Skips& ranges)
+void CleanRanges(MetaData::Skips& ranges)
 {
 	std::sort(
 		ranges.begin(),
@@ -234,7 +234,7 @@ Process::Process()
 	ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 }
 
-void Process::loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges, const Cb& cb)
+void Process::loop(ZyanU64 ra, const Content& content, const MetaData& meta, const Cb& cb)
 {
 	const size_t file_size = content.size();
 	const ZyanU8* const data = &content[0];
@@ -242,24 +242,24 @@ void Process::loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges,
 	ZyanU64 runtime_address = ra;
 	ZyanUSize offset = 0;
 	ZydisDisassembledInstruction instruction;
-	auto itskip = skip_ranges.begin();
+	auto itskip = meta.skips.begin();
 
 	cb.start();
 
 	while (offset < file_size) {
-		if (itskip != skip_ranges.end()) {
+		if (itskip != meta.skips.end()) {
 			const auto& [skip_start, skip_length] = *itskip;
 			if (offset >= skip_start && offset < skip_start + skip_length) {
 				const auto next_offset = skip_start + skip_length;
 				const auto delta = next_offset - offset;
-				cb.onSkip({ *this, runtime_address, data + offset, offset }, next_offset - offset);
+				cb.onSkip({ *this, meta.labels, runtime_address, data + offset, offset }, next_offset - offset);
 				offset += delta;
 				runtime_address += delta;
 				++itskip;
 				continue;
 			}
 		}
-		auto nsync = std::min(offset + 6, itskip != skip_ranges.end() ? itskip->first : file_size);
+		auto nsync = std::min(offset + 6, itskip != meta.skips.end() ? itskip->first : file_size);
 		const bool ok = ZYAN_SUCCESS(ZydisDisassembleIntel(
 			// ZYDIS_MACHINE_MODE_LONG_COMPAT_16,
 			ZYDIS_MACHINE_MODE_LEGACY_16,
@@ -269,11 +269,11 @@ void Process::loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges,
 			nsync - offset,
 			&instruction));
 		if (!ok) {
-			cb.onUnkByte({ *this, runtime_address, data + offset, offset }, data[offset]);
+			cb.onUnkByte({ *this, meta.labels, runtime_address, data + offset, offset }, data[offset]);
 			offset += 1;
 			runtime_address += 1;
 		} else {
-			cb.onIns({ *this, runtime_address, data + offset, offset }, instruction);
+			cb.onIns({ *this, meta.labels, runtime_address, data + offset, offset }, instruction);
 			offset += instruction.info.length;
 			runtime_address += instruction.info.length;
 		}

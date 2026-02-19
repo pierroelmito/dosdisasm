@@ -21,9 +21,17 @@ namespace po = boost::program_options;
 
 struct Process;
 
+struct MetaData {
+	using Skips = std::vector<std::pair<size_t, size_t>>;
+	using Labels = std::map<ZyanU64, std::string>;
+	Skips skips {};
+	Labels labels {};
+};
+
 struct Cb {
 	struct Ctx {
 		const Process& p;
+		const MetaData::Labels& labels;
 		ZyanU64 runtime_address;
 		const ZyanU8* const data;
 		ZyanUSize offset;
@@ -51,32 +59,36 @@ struct AnalyzeLabels : Cb {
 	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
 };
 
-using Skips = std::vector<std::pair<size_t, size_t>>;
 using Content = std::vector<ZyanU8>;
 
 struct Process {
 	ZydisDecoder decoder {};
 	ZydisFormatter formatter {};
 	Process();
-	void loop(ZyanU64 ra, const Content& content, const Skips& skip_ranges, const Cb& cb);
+	void loop(ZyanU64 ra, const Content& content, const MetaData& meta, const Cb& cb);
 };
 
 Content ReadFile(const char* filename);
 size_t FromString(const std::string& str);
 bool HandleOptions(int ac, char** av, po::variables_map& vm);
-Skips DetectStrings(const Content& content);
-Skips DetectRepeats(const Content& content);
-Skips MakeRanges(const po::variables_map& vm);
-Skips MetaDataReadFromFile(const std::string& path);
-void MetaDataSaveToFile(const Skips& skips, const std::string& path);
-void CleanRanges(Skips& ranges);
+
+MetaData::Skips DetectStrings(const Content& content);
+MetaData::Skips DetectRepeats(const Content& content);
+MetaData::Skips MakeRanges(const po::variables_map& vm);
+void CleanRanges(MetaData::Skips& ranges);
+
+MetaData MetaDataReadFromFile(const std::string& path);
+void MetaDataSaveToFile(const MetaData& meta, const std::string& path);
+
+std::optional<ZyanI64> GetMemOperand(const ZydisDecodedOperand& op);
 std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address, bool anySize);
+std::optional<ZyanU64> GetMemRef(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address);
 
 struct UiCtxParams {
 	const std::string& binFilename;
 	const std::string& workFilename;
 	const Content& content;
-	const Skips& skips;
+	const MetaData& meta;
 	ZyanU64 ra {};
 };
 

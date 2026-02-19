@@ -82,7 +82,7 @@ struct UiCtx {
 	const ZyanU64 ra {};
 	const Content& content;
 	Content rebuild;
-	Skips skips;
+	MetaData meta;
 	bool dirty { true };
 
 	Listing l;
