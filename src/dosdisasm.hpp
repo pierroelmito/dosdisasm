@@ -31,7 +31,7 @@ struct MetaData {
 struct Cb {
 	struct Ctx {
 		const Process& p;
-		const MetaData::Labels& labels;
+		const MetaData& md;
 		ZyanU64 runtime_address;
 		const ZyanU8* const data;
 		ZyanUSize offset;
@@ -57,6 +57,7 @@ struct AnalyzeLabels : Cb {
 	JumpFlagsMap& jumpLabels;
 	AnalyzeLabels(std::set<ZyanU64>& el, JumpFlagsMap& jl);
 	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
+	virtual void onSkip(const Ctx&, ZyanUSize /*size*/) const override;
 };
 
 using Content = std::vector<ZyanU8>;
@@ -65,6 +66,7 @@ struct Process {
 	ZydisDecoder decoder {};
 	ZydisFormatter formatter {};
 	Process();
+	std::string getOperandStr(ZyanU64 runtime_address, const ZydisDecodedInstruction* ins, const ZydisDecodedOperand* op) const;
 	void loop(ZyanU64 ra, const Content& content, const MetaData& meta, const Cb& cb);
 };
 

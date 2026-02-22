@@ -51,6 +51,7 @@ struct Dumper : Cb {
 	virtual void onUnkByte(const Ctx& ctx, ZyanU8 skip) const override;
 	virtual void onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const override;
 	std::string getComment(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const;
+	std::string getLabel(const MetaData& md, const ZyanU64 address) const;
 };
 
 enum class Cmp {

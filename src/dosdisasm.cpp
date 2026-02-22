@@ -230,8 +230,23 @@ void CleanRanges(MetaData::Skips& ranges)
 
 Process::Process()
 {
-	ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_REAL_16, ZYDIS_STACK_WIDTH_16);
+	// ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_REAL_16, ZYDIS_STACK_WIDTH_16);
+	ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LEGACY_16, ZYDIS_STACK_WIDTH_16);
 	ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+}
+
+std::string Process::getOperandStr(ZyanU64 runtime_address, const ZydisDecodedInstruction* ins, const ZydisDecodedOperand* op) const
+{
+	char buffer[96];
+	const bool okFormat = ZYAN_SUCCESS(ZydisFormatterFormatOperand(
+		&formatter,
+		ins,
+		op,
+		buffer,
+		sizeof(buffer),
+		runtime_address,
+		nullptr));
+	return buffer;
 }
 
 void Process::loop(ZyanU64 ra, const Content& content, const MetaData& meta, const Cb& cb)
@@ -252,7 +267,7 @@ void Process::loop(ZyanU64 ra, const Content& content, const MetaData& meta, con
 			if (offset >= skip_start && offset < skip_start + skip_length) {
 				const auto next_offset = skip_start + skip_length;
 				const auto delta = next_offset - offset;
-				cb.onSkip({ *this, meta.labels, runtime_address, data + offset, offset }, next_offset - offset);
+				cb.onSkip({ *this, meta, runtime_address, data + offset, offset }, next_offset - offset);
 				offset += delta;
 				runtime_address += delta;
 				++itskip;
@@ -260,6 +275,27 @@ void Process::loop(ZyanU64 ra, const Content& content, const MetaData& meta, con
 			}
 		}
 		auto nsync = std::min(offset + 6, itskip != meta.skips.end() ? itskip->first : file_size);
+
+#if 1
+		const bool okDecode = ZYAN_SUCCESS(ZydisDecoderDecodeFull(
+			&decoder,
+			data + offset,
+			nsync - offset,
+			&instruction.info,
+			instruction.operands));
+
+		const bool okFormat = ZYAN_SUCCESS(ZydisFormatterFormatInstruction(
+			&formatter,
+			&instruction.info,
+			instruction.operands,
+			instruction.info.operand_count,
+			instruction.text,
+			sizeof(instruction.text),
+			runtime_address,
+			nullptr));
+
+		const bool ok = okDecode && okFormat;
+#else
 		const bool ok = ZYAN_SUCCESS(ZydisDisassembleIntel(
 			// ZYDIS_MACHINE_MODE_LONG_COMPAT_16,
 			ZYDIS_MACHINE_MODE_LEGACY_16,
@@ -268,12 +304,14 @@ void Process::loop(ZyanU64 ra, const Content& content, const MetaData& meta, con
 			data + offset,
 			nsync - offset,
 			&instruction));
+#endif
+
 		if (!ok) {
-			cb.onUnkByte({ *this, meta.labels, runtime_address, data + offset, offset }, data[offset]);
+			cb.onUnkByte({ *this, meta, runtime_address, data + offset, offset }, data[offset]);
 			offset += 1;
 			runtime_address += 1;
 		} else {
-			cb.onIns({ *this, meta.labels, runtime_address, data + offset, offset }, instruction);
+			cb.onIns({ *this, meta, runtime_address, data + offset, offset }, instruction);
 			offset += instruction.info.length;
 			runtime_address += instruction.info.length;
 		}

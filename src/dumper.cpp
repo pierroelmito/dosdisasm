@@ -32,7 +32,7 @@ void makeLabel(const MetaData::Labels& labels, char buffer[64], ZyanU64 ra, uint
 
 void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 {
-	// - use dw is size == 2
+	// - use dw if size == 2
 	// - is only printable, use string
 	if (size > 4) {
 		auto* b = ctx.data;
@@ -42,16 +42,21 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 		});
 		if (itf == e) {
 			char label[64];
-			makeLabel(ctx.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
+			makeLabel(ctx.md.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 			dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "times %d db 0x%02X", size, *b);
 			return;
 		}
 	}
 	if (size == 2) {
 		char label[64];
-		makeLabel(ctx.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
+		makeLabel(ctx.md.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 		const uint16_t s = (ctx.data[1] << 8) | ctx.data[0];
-		dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "dw 0x%04X", s);
+		const std::string comment = getLabel(ctx.md, s);
+		if (comment.empty()) {
+			dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "dw 0x%04X", s);
+		} else {
+			dump(ctx, { CType::Dup, size, label, std::nullopt, nullptr }, "dw %s", comment.c_str());
+		}
 		return;
 	}
 	char buffer[2048];
@@ -59,7 +64,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 	auto mkCtx = [&](auto i) -> Ctx {
 		return {
 			ctx.p,
-			ctx.labels,
+			ctx.md,
 			ctx.runtime_address + i,
 			ctx.data + i,
 			ctx.offset + i
@@ -84,7 +89,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 					buffer[di + 1] = 0;
 				}
 				char label[64];
-				makeLabel(ctx.labels, label, ctx.runtime_address + i, uint8_t(JumpFlag::DATA));
+				makeLabel(ctx.md.labels, label, ctx.runtime_address + i, uint8_t(JumpFlag::DATA));
 				if (slen < size && ctx.data[slen] == 0) {
 					dump(mkCtx(i), { CType::Str, slen, label, std::nullopt, nullptr }, "db `%s`, 0", buffer);
 					lastNl = i + slen + 1;
@@ -104,7 +109,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 			bi += snprintf(buffer + bi, sizeof(buffer) - bi, ", 0x%02X", byte);
 		if (lastNl + 15 == i) {
 			char label[64];
-			makeLabel(ctx.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
+			makeLabel(ctx.md.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 			dump(mkCtx(lastNl), { CType::Dup, 1 + i - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr }, "%s", buffer);
 			lastNl = i + 1;
 			bi = 0;
@@ -112,7 +117,7 @@ void Dumper::onSkip(const Ctx& ctx, ZyanUSize size) const
 	}
 	if (bi != 0) {
 		char label[64];
-		makeLabel(ctx.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
+		makeLabel(ctx.md.labels, label, ctx.runtime_address, uint8_t(JumpFlag::DATA));
 		dump(mkCtx(lastNl), { CType::Dup, size - lastNl, lastNl == 0 ? label : nullptr, std::nullopt, nullptr }, "%s", buffer);
 	}
 }
@@ -130,7 +135,17 @@ std::optional<ZyanI64> getImmOperand(const ZydisDecodedOperand& op)
 	return v;
 }
 
-std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& instruction) const
+std::string Dumper::getLabel(const MetaData& md, const ZyanU64 address) const
+{
+	const auto itf = existingLabels.find(address);
+	if (itf == existingLabels.end())
+		return {};
+	if (const auto itl = md.labels.find(address); itl != md.labels.end())
+		return itl->second;
+	return Fmt<32>("D_%04X", address);
+}
+
+std::string Dumper::getComment(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const
 {
 	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_INT) {
 		if (instruction.info.operand_count_visible == 1) {
@@ -144,22 +159,30 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 				return Fmt<32>("%02X", int0);
 		}
 	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_IN) {
-		if (instruction.info.operand_count_visible == 2 && instruction.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
-			const auto p = uint16_t(instruction.operands[1].imm.value.u);
-			auto itf = portInfo.find(p);
-			if (itf == portInfo.end())
-				return Fmt<32>("%03X", p);
-			else
-				return Fmt<32>("%03X -> ", p) + itf->second.first;
-		}
-	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_OUT && instruction.operands[0].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
 		if (instruction.info.operand_count_visible == 2) {
-			const auto p = uint16_t(instruction.operands[0].imm.value.u);
-			auto itf = portInfo.find(p);
-			if (itf == portInfo.end())
-				return Fmt<32>("%03X", p);
-			else
-				return Fmt<32>("%03X -> ", p) + itf->second.first;
+			if (instruction.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+				const auto p = uint16_t(instruction.operands[1].imm.value.u);
+				auto itf = portInfo.find(p);
+				if (itf == portInfo.end())
+					return Fmt<32>("%03X", p);
+				else
+					return Fmt<32>("%03X -> ", p) + itf->second.first;
+			} else {
+				return "???";
+			}
+		}
+	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_OUT) {
+		if (instruction.info.operand_count_visible == 2) {
+			if (instruction.operands[0].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+				const auto p = uint16_t(instruction.operands[0].imm.value.u);
+				auto itf = portInfo.find(p);
+				if (itf == portInfo.end())
+					return Fmt<32>("%03X", p);
+				else
+					return Fmt<32>("%03X -> ", p) + itf->second.first;
+			} else {
+				return "???";
+			}
 		}
 	} else if (instruction.info.mnemonic == ZYDIS_MNEMONIC_MOV) {
 		if (instruction.info.operand_count_visible == 2) {
@@ -174,13 +197,24 @@ std::string Dumper::getComment(const Ctx&, const ZydisDisassembledInstruction& i
 					}
 				}
 			}
-			if (auto mem = GetMemOperand(instruction.operands[0]); mem) {
-				return "mov to " + Fmt<32>("0x%X", *mem);
-			} else if (auto mem = GetMemOperand(instruction.operands[1]); mem) {
-				return "mov from " + Fmt<32>("0x%X", *mem);
-			} else if (auto imm = getImmOperand(instruction.operands[1]); imm) {
-				return "mov " + Fmt<32>("0x%X", *imm);
+		}
+	}
+	for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
+		if (auto mem = GetMemOperand(instruction.operands[i]); mem) {
+			const auto l = getLabel(ctx.md, *mem);
+			if (l.empty()) {
+				return Fmt<32>("/!\\ 0x%X", *mem);
+			} else {
+				const auto op = ctx.p.getOperandStr(instruction.runtime_address, &instruction.info, &instruction.operands[i]);
+				return op + " -> [" + l + "]";
 			}
+		}
+	}
+	for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
+		if (auto imm = getImmOperand(instruction.operands[i]); imm) {
+			const auto l = getLabel(ctx.md, *imm);
+			if (!l.empty())
+				return l;
 		}
 	}
 	return {};
@@ -192,7 +226,7 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 	const char* label = nullptr;
 	char buffer[64];
 	if (auto itf = jumpLabels.find(ctx.runtime_address); itf != jumpLabels.end()) {
-		makeLabel(ctx.labels, buffer, ctx.runtime_address, itf->second);
+		makeLabel(ctx.md.labels, buffer, ctx.runtime_address, itf->second);
 		label = buffer;
 	}
 	std::vector<std::string> s;
@@ -226,7 +260,7 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 			if (existingLabels.find(*ona) != existingLabels.end()) {
 				char jlabel[64];
 				const auto itf = jumpLabels.find(*ona);
-				makeLabel(ctx.labels, jlabel, *ona, itf->second);
+				makeLabel(ctx.md.labels, jlabel, *ona, itf->second);
 				dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s%s %s", s[0].c_str(), prefix, jlabel);
 			} else {
 				dump(ctx, { ct, instruction.info.length, label, ona, cmtPtr }, "%s%s %s", s[0].c_str(), prefix, s[1].c_str());

@@ -13,9 +13,11 @@ std::optional<ZyanI64> GetMemOperand(const ZydisDecodedOperand& op)
 {
 	if (op.type != ZYDIS_OPERAND_TYPE_MEMORY)
 		return std::nullopt;
-	//if (op.mem.segment != ZYDIS_REGISTER_NONE) return std::nullopt;
-	if (op.mem.base != ZYDIS_REGISTER_NONE) return std::nullopt;
-	if (op.mem.index != ZYDIS_REGISTER_NONE) return std::nullopt;
+	// if (op.mem.segment != ZYDIS_REGISTER_NONE) return std::nullopt;
+	if (op.mem.base != ZYDIS_REGISTER_NONE)
+		return std::nullopt;
+	if (op.mem.index != ZYDIS_REGISTER_NONE)
+		return std::nullopt;
 	auto v = op.mem.disp.value;
 	return v;
 }
@@ -61,6 +63,11 @@ void AnalyzeLabels::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& in
 		const bool isCall = instruction.info.mnemonic == ZYDIS_MNEMONIC_CALL;
 		jumpLabels[*ona] |= uint8_t(isCall ? JumpFlag::CALL : JumpFlag::JUMP);
 	}
+}
+
+void AnalyzeLabels::onSkip(const Ctx& ctx, ZyanUSize /*size*/) const
+{
+	existingLabels.insert(ctx.runtime_address);
 }
 
 struct GenerateAsmColor : Dumper {
@@ -166,12 +173,90 @@ int main(int ac, char** av)
 		}
 	}
 
-	meta.labels = {
-		{ 0x2D1, "pwait" },
-		{ 0x2D5, "lwait" },
-		{ 0x317, "set_cur" },
-		{ 0x324, "read_cur" },
+	int varIndex{};
+	const auto newVar = [&] () {
+		return Fmt<32>("var_%03d", varIndex++);
 	};
+
+	int fnIndex{};
+	const auto newFn = [&] () {
+		return Fmt<32>("fn_%03d", fnIndex++);
+	};
+
+#if 0
+	meta.labels = {
+		{ 0x103, newVar() },
+		{ 0x123, "sz_Infogrames" },
+		{ 0x140, "sz_FR" },
+		{ 0x146, "sz_GB" },
+		{ 0x14C, "sz_E" },
+		{ 0x151, "sz_D" },
+		{ 0x156, "p_szFR" },
+		{ 0x158, "p_szGB" },
+		{ 0x15A, "p_szE" },
+		{ 0x15C, "p_szD" },
+		{ 0x15E, "sz_PC1512" },
+		{ 0x171, "sz_Tandy" },
+		{ 0x17A, "sz_OtherFR" },
+		{ 0x183, "sz_OtherEN" },
+		{ 0x18C, "sz_OtherES" },
+		{ 0x1A1, "sz_OtherDE" },
+		{ 0x1AB, "p_szPC1512" },
+		{ 0x1AD, "p_szTandy" },
+		{ 0x1AF, "p_szOther" },
+		{ 0x1B1, "sz_SlowFR" },
+		{ 0x1C2, "sz_FastFR" },
+		{ 0x1D4, "sz_FastEN" },
+		{ 0x1E5, "sz_SlowEN" },
+		{ 0x1F6, "sz_SlowES" },
+		{ 0x209, "sz_FastES" },
+		{ 0x21D, "sz_FastDE" },
+		{ 0x233, "sz_SlowDE" },
+		{ 0x249, "p_szSlow" },
+		{ 0x24B, "p_szFast" },
+		{ 0x24D, "sz_Prohibition" },
+		{ 0x265, "sz_Version" },
+		{ 0x28C, "var_idxComputer" },
+		{ 0x28D, "sz_Image" },
+		{ 0x297, "sz_P1" },
+		{ 0x29E, "sz_P2" },
+		{ 0x2A5, "sz_P3" },
+		{ 0x2AC, "sz_P4" },
+		{ 0x2B3, "p_szP1" },
+		{ 0x2B5, "p_szP2" },
+		{ 0x2B7, "p_szP3" },
+		{ 0x2B9, "p_szP4" },
+		{ 0x2D1, "fn_pwait" },
+		{ 0x2D5, "lwait" },
+		{ 0x2D9, newFn() },
+		{ 0x2F3, newFn() },
+		{ 0x2FE, newFn() },
+		{ 0x317, "fn_set_cur" },
+		{ 0x324, "fn_read_cur" },
+		{ 0x331, newFn() },
+		{ 0x33A, newFn() },
+		{ 0x342, newFn() },
+		{ 0x351, newFn() },
+		{ 0x370, newFn() },
+		{ 0x3CB, newFn() },
+		{ 0x426, newFn() },
+		{ 0x473, newFn() },
+		{ 0x48E, newFn() },
+		{ 0x4A2, "fn_print_str" },
+		{ 0x6A1, newVar() },
+		{ 0x759, newVar() },
+		{ 0x75A, newVar() },
+		{ 0x801, "fn_set_lang" },
+		{ 0x815, "set_EN" },
+		{ 0x82D, "set_ES" },
+		{ 0x845, "set_DE" },
+		{ 0x85A, "keep_FR" },
+		{ 0x929, newVar() },
+		{ 0xF35, newFn() },
+		{ 0xF46, newFn() },
+		{ 0x10C7, newFn() },
+	};
+#endif
 
 	const ZyanU64 ra = 0x100;
 

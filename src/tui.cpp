@@ -31,13 +31,14 @@ inline ru::Fg ColFromCt(CType ct)
 void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 {
 	const auto bgSelected = ru::Bg { 25 };
-	const auto bgNormal = ru::Bg { 235 };
 	const auto bgHighlight = ru::Bg { 58 };
 
 	const int y = icode - ctx.loc.start;
 	const auto& o = ctx.l[icode];
 	const bool selected = icode == int(ctx.loc.s);
 	const bool highlight = ctx.jump && o.ra == ctx.jump;
+	const uint8_t bgIndex = (o.ct == CType::Ret) ? 237u : 235u;
+	const auto bgNormal = ru::Bg { bgIndex };
 	const auto tcol = ColFromCt(o.ct);
 	const auto col = highlight ? bgHighlight : (selected ? bgSelected : bgNormal);
 
@@ -77,9 +78,9 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	}
 
 	if (o.label.empty())
-		lsz += ru::fmt(ru::FgBrown, "%04X      ", o.ra);
+		lsz += ru::fmt(ru::FgBrown, "%04X              ", o.ra);
 	else
-		lsz += ru::fmt(ru::FgLightCyan, "%-8.8s: ", o.label.c_str());
+		lsz += ru::fmt(ru::FgLightCyan, "%-16.16s: ", o.label.c_str());
 
 	lsz += ru::fmt(tcol, "%.*s", 64, o.asmc.c_str());
 
