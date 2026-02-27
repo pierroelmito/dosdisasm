@@ -53,7 +53,7 @@ void GuiMainDrawLine(UiCtx& ctx, Assets& asst, Dim d, int y, int icode)
 	const int xLabel = xNew + 13;
 	const int xCode = xLabel + 10;
 
-	const bool highlight = ctx.jump && o.ra == ctx.jump;
+	const bool highlight = ctx.jumpTo && o.ra == ctx.jumpTo;
 	const auto tcol = ColFromCt(o.ct);
 
 	if (icode == int(ctx.loc.s)) {

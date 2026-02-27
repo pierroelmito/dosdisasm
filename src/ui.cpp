@@ -100,7 +100,7 @@ void CheckRecompile(UiCtx& ctx)
 	for (const auto& i : ctx.l) {
 		if (!i.label.empty())
 			fprintf(out, "%s: ", i.label.c_str());
-		fprintf(out, "  %s\n", i.asmc.c_str());
+		fprintf(out, "%s\n", i.asmc.c_str());
 	}
 	fclose(out);
 
@@ -202,7 +202,8 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 {
 	if (!current)
 		return {};
-	ctx.jump = current->jump;
+	ctx.jumpTo = current->jump;
+	ctx.jumpFrom = current->ra;
 	std::string status;
 	const auto nsi = GetNearestSkipIndex(ctx, current->ra);
 	const auto nsii = nsi.value_or(ctx.meta.skips.size());
@@ -262,9 +263,9 @@ std::string SetActions(UiCtx& ctx, const Item* current)
 								   } });
 		}
 	} else {
-		status = "[" + std::to_string(nsii) + "] Code";
+		status = "[" + std::to_string(nsii) + "]";
 		if (current->jump)
-			status += " jump to " + std::to_string(*current->jump);
+			status += " ref to 0x" + Fmt<16>("%04X", *current->jump);
 		{
 			std::pair<size_t, size_t> nskip { current->ra - ctx.ra, 1 };
 			ctx.actions.push_back({ Action::SkAdd, [=, loc = ctx.loc](bool d, UiCtx& ctx) {

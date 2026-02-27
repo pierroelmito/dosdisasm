@@ -89,7 +89,8 @@ struct UiCtx {
 
 	Loc loc {};
 	std::vector<std::tuple<Action, As::Action>> actions {};
-	std::optional<ZyanU64> jump {};
+	std::optional<ZyanU64> jumpTo {};
+	std::optional<ZyanU64> jumpFrom {};
 
 	std::vector<std::string> nasmErrors {};
 };

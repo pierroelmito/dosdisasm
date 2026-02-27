@@ -145,6 +145,25 @@ std::string Dumper::getLabel(const MetaData& md, const ZyanU64 address) const
 	return Fmt<32>("D_%04X", address);
 }
 
+void Dumper::makeReplaces(const Ctx& ctx, const ZydisDisassembledInstruction& instruction, std::vector<std::string>& tokens) const
+{
+#if 1
+	for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
+		if (auto mem = GetMemOperand(instruction.operands[i]); mem) {
+			const auto l = getLabel(ctx.md, *mem);
+			if (!l.empty()) {
+				const auto op = ctx.p.getOperandStr(instruction.runtime_address, &instruction.info, &instruction.operands[i]);
+				for (auto& token : tokens) {
+					if (token.compare(0, op.size(), op) == 0) {
+						token = "[" + l + "]" + token.substr(op.size());
+					}
+				}
+			}
+		}
+	}
+#endif
+}
+
 std::string Dumper::getComment(const Ctx& ctx, const ZydisDisassembledInstruction& instruction) const
 {
 	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_INT) {
@@ -200,17 +219,6 @@ std::string Dumper::getComment(const Ctx& ctx, const ZydisDisassembledInstructio
 		}
 	}
 	for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
-		if (auto mem = GetMemOperand(instruction.operands[i]); mem) {
-			const auto l = getLabel(ctx.md, *mem);
-			if (l.empty()) {
-				return Fmt<32>("/!\\ 0x%X", *mem);
-			} else {
-				const auto op = ctx.p.getOperandStr(instruction.runtime_address, &instruction.info, &instruction.operands[i]);
-				return op + " -> [" + l + "]";
-			}
-		}
-	}
-	for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
 		if (auto imm = getImmOperand(instruction.operands[i]); imm) {
 			const auto l = getLabel(ctx.md, *imm);
 			if (!l.empty())
@@ -246,6 +254,9 @@ void Dumper::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& instructi
 		if (w == "ptr")
 			w = "near";
 	}
+
+	makeReplaces(ctx, instruction, s);
+
 	// s.erase(std::remove(s.begin(), s.end(), "ptr"), s.end());
 	// const bool isJmp = s[0] == "jmp";
 	const auto comment = getComment(ctx, instruction);
@@ -586,6 +597,14 @@ const std::map<uint16_t, std::pair<const char*, const char*>> portInfo = {
 	{ 0x00D, { "Master clear temp register", "" } },
 	{ 0x00E, { "Clear mask register", "" } },
 	{ 0x00F, { "Multiple mask register", "" } },
+	// 3F0-3F7  Floppy disk controller (except PCjr)
+	{ 0x3F0, { "Diskette controller status A", "" } },
+	{ 0x3F1, { "Disiskette controller status B", "" } },
+	{ 0x3F2, { "conistroller control port", "" } },
+	{ 0x3F4, { "conistroller status register", "" } },
+	{ 0x3F5, { "datisa register (write 1-9 byte command, see INT 13)", "" } },
+	{ 0x3F6, { "Disiskette controller data", "" } },
+	{ 0x3F7, { "Disiskette digital input", "" } },
 	// 040-05F  8253 or 8254 Programmable Interval Timer (PIT, see ~8253~)
 	{ 0x040, { "8253 channel 0, counter divisor", "" } },
 	{ 0x041, { "8253 channel 1, RAM refresh counter", "" } },

@@ -38,13 +38,11 @@ std::optional<ZyanU64> IsShortJump(const ZydisDisassembledInstruction& instructi
 
 std::optional<ZyanU64> GetMemRef(const ZydisDisassembledInstruction& instruction, ZyanU64 runtime_address)
 {
-	if (instruction.info.mnemonic == ZYDIS_MNEMONIC_MOV) {
-		if (instruction.info.operand_count_visible == 2) {
-			if (auto mem = GetMemOperand(instruction.operands[0]); mem) {
-				return mem;
-			} else if (auto mem = GetMemOperand(instruction.operands[1]); mem) {
-				return mem;
-			}
+	if (instruction.info.operand_count_visible == 2) {
+		if (auto mem = GetMemOperand(instruction.operands[0]); mem) {
+			return mem;
+		} else if (auto mem = GetMemOperand(instruction.operands[1]); mem) {
+			return mem;
 		}
 	}
 	return std::nullopt;
@@ -62,6 +60,12 @@ void AnalyzeLabels::onIns(const Ctx& ctx, const ZydisDisassembledInstruction& in
 	if (const auto ona = IsShortJump(instruction, ctx.runtime_address, true)) {
 		const bool isCall = instruction.info.mnemonic == ZYDIS_MNEMONIC_CALL;
 		jumpLabels[*ona] |= uint8_t(isCall ? JumpFlag::CALL : JumpFlag::JUMP);
+	} else {
+		for (int i = 0; i < instruction.info.operand_count_visible; ++i) {
+			if (auto mem = GetMemOperand(instruction.operands[i]); mem) {
+				jumpLabels[*mem] = uint8_t(JumpFlag::DATA);
+			}
+		}
 	}
 }
 
@@ -173,19 +177,20 @@ int main(int ac, char** av)
 		}
 	}
 
-	int varIndex{};
-	const auto newVar = [&] () {
+	int varIndex {};
+	const auto newVar = [&]() {
 		return Fmt<32>("var_%03d", varIndex++);
 	};
 
-	int fnIndex{};
-	const auto newFn = [&] () {
+	int fnIndex {};
+	const auto newFn = [&]() {
 		return Fmt<32>("fn_%03d", fnIndex++);
 	};
 
-#if 0
+#if 1
 	meta.labels = {
 		{ 0x103, newVar() },
+		{ 0x105, newVar() },
 		{ 0x123, "sz_Infogrames" },
 		{ 0x140, "sz_FR" },
 		{ 0x146, "sz_GB" },
@@ -226,6 +231,7 @@ int main(int ac, char** av)
 		{ 0x2B5, "p_szP2" },
 		{ 0x2B7, "p_szP3" },
 		{ 0x2B9, "p_szP4" },
+		{ 0x2C3, newVar() },
 		{ 0x2D1, "fn_pwait" },
 		{ 0x2D5, "lwait" },
 		{ 0x2D9, newFn() },
@@ -241,7 +247,7 @@ int main(int ac, char** av)
 		{ 0x3CB, newFn() },
 		{ 0x426, newFn() },
 		{ 0x473, newFn() },
-		{ 0x48E, newFn() },
+		{ 0x48E, "strlen_bx" },
 		{ 0x4A2, "fn_print_str" },
 		{ 0x6A1, newVar() },
 		{ 0x759, newVar() },
@@ -252,9 +258,27 @@ int main(int ac, char** av)
 		{ 0x845, "set_DE" },
 		{ 0x85A, "keep_FR" },
 		{ 0x929, newVar() },
+		{ 0x9B0, newVar() },
+		{ 0x9B1, newVar() },
+		{ 0x9B2, newVar() },
+		{ 0x9B3, newVar() },
+		{ 0x9B4, newVar() },
+		{ 0x9B6, newVar() },
+		{ 0x9B8, newVar() },
+		{ 0x9B9, newVar() },
+		{ 0x9A7, newVar() },
+		{ 0xF27, newFn() },
 		{ 0xF35, newFn() },
 		{ 0xF46, newFn() },
+		{ 0xF90, newVar() },
+		{ 0xF91, newVar() },
+		{ 0xF92, newVar() },
+		{ 0xF93, newVar() },
+		{ 0xF94, newVar() },
+		{ 0xF96, newVar() },
+		{ 0xF98, newVar() },
 		{ 0x10C7, newFn() },
+		{ 0x1054, newFn() },
 	};
 #endif
 

@@ -36,7 +36,9 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	const int y = icode - ctx.loc.start;
 	const auto& o = ctx.l[icode];
 	const bool selected = icode == int(ctx.loc.s);
-	const bool highlight = ctx.jump && o.ra == ctx.jump;
+	const bool jumpTo = ctx.jumpTo && o.ra == *ctx.jumpTo;
+	const bool jumpFrom = o.jump && ctx.jumpFrom && *o.jump == *ctx.jumpFrom;
+	const bool highlight = jumpTo || jumpFrom;
 	const uint8_t bgIndex = (o.ct == CType::Ret) ? 237u : 235u;
 	const auto bgNormal = ru::Bg { bgIndex };
 	const auto tcol = ColFromCt(o.ct);
@@ -45,7 +47,7 @@ void TuiMainDrawLine(UiCtx& ctx, ru::Vec, std::string& spaces, int icode)
 	ru::put(tcol, V { 1, y + 2 });
 
 	const int maxSz = 6;
-	int lsz = ru::fmt(col, "%4d ", 1 + icode);
+	int lsz = ru::fmt(col, "%04X ", o.ra);
 	ru::put(ru::FgLightMagenta);
 	const auto* start = &ctx.content[o.ra - ctx.ra];
 	if (o.sz > maxSz) {
